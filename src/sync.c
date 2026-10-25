@@ -29,6 +29,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>  // MoveFileExA
+#endif
+
 /*
  * Replay file: "OTRP", u16 version, then a stream of records, all little-endian:
  *   'L' u16 level                       a level started; the tick count restarts
@@ -56,6 +61,7 @@ static FILE *record_file = NULL, *replay_file = NULL, *hash_log = NULL;
 // A recording is written to "<path>.part" and only renamed to <path> by a clean quit, so a
 // failed or aborted run never replaces a good recording.
 static char *record_path = NULL, *record_part_path = NULL;
+static bool recording_aborted = false;
 
 static unsigned int current_level = 0;
 static Uint32 recorded_hashes = 0, verified_ticks = 0;
@@ -143,11 +149,23 @@ static float bits_float(Uint32 bits)
 
 /* --- opening --- */
 
+/** Moves src over dst in one step, so dst is never missing or half-written. */
+static bool replace_file(const char *src, const char *dst)
+{
+#ifdef _WIN32
+	// rename() won't replace an existing file on Windows; deleting first would lose dst if the
+	// move then failed (e.g. a sync client or virus scanner holding src open)
+	return MoveFileExA(src, dst, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+	return rename(src, dst) == 0;  // atomic on POSIX
+#endif
+}
+
 /** Completes the recording: writes the end record and moves the file into place. */
-static void finish_recording(void)
+static bool finish_recording(void)
 {
 	if (record_file == NULL)
-		return;
+		return true;
 
 	put_u8(record_file, 'E');
 	put_u32(record_file, recorded_hashes);
@@ -159,20 +177,36 @@ static void finish_recording(void)
 	if (write_failed || close_failed)
 	{
 		fprintf(stderr, "error: failed to write the replay file '%s'\n", record_part_path);
-		return;
+		return false;
 	}
 
-	remove(record_path);  // rename() won't replace an existing file on Windows
-	if (rename(record_part_path, record_path) != 0)
-		fprintf(stderr, "error: failed to move '%s' to '%s'\n", record_part_path, record_path);
-	else
-		fprintf(stderr, "sync: recorded %u ticks to %s\n", (unsigned)recorded_hashes, record_path);
+	if (!replace_file(record_part_path, record_path))
+	{
+		fprintf(stderr, "error: failed to move '%s' to '%s'; the recording is left in the first\n", record_part_path, record_path);
+		return false;
+	}
+
+	fprintf(stderr, "sync: recorded %u ticks to %s\n", (unsigned)recorded_hashes, record_path);
+	return true;
+}
+
+void sync_abort_recording(void)
+{
+	if (record_file == NULL)
+		return;
+
+	fclose(record_file);
+	record_file = NULL;
+	recording_aborted = true;
+	fprintf(stderr, "sync: recording aborted; %s is unchanged, the partial recording is in %s\n", record_path, record_part_path);
 }
 
 int sync_quit(int exit_code)
 {
-	if (exit_code == 0)
-		finish_recording();
+	if (exit_code == 0 && !finish_recording())
+		return EXIT_FAILURE;
+	if (exit_code == 0 && recording_aborted)
+		return EXIT_FAILURE;
 
 	// a replay only succeeds through replay_finished(); any other clean exit means it didn't finish
 	if (replay_file != NULL && exit_code == 0)
@@ -192,6 +226,11 @@ bool sync_open_record(const char *path)
 	if (replay_file != NULL)
 	{
 		fprintf(stderr, "error: cannot record and replay at the same time\n");
+		return false;
+	}
+	if (record_file != NULL)
+	{
+		fprintf(stderr, "error: --record-input given more than once\n");
 		return false;
 	}
 
@@ -221,6 +260,11 @@ bool sync_open_replay(const char *path)
 		fprintf(stderr, "error: cannot record and replay at the same time\n");
 		return false;
 	}
+	if (replay_file != NULL)
+	{
+		fprintf(stderr, "error: --replay-input given more than once\n");
+		return false;
+	}
 
 	replay_file = fopen(path, "rb");
 	if (replay_file == NULL)
@@ -242,6 +286,12 @@ bool sync_open_replay(const char *path)
 
 bool sync_open_hash_log(const char *path)
 {
+	if (hash_log != NULL)
+	{
+		fprintf(stderr, "error: --hash-log given more than once\n");
+		return false;
+	}
+
 	hash_log = fopen(path, "w");
 	if (hash_log == NULL)
 	{

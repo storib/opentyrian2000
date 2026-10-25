@@ -53,9 +53,13 @@ opentyrian2000 --quick-arcade=2:1:normal --dev-script=tests/sync/2p-arcade-recor
 opentyrian2000 --quick-arcade=2:1:normal --dev-script=tests/sync/2p-link-record.txt --record-input=tests/sync/2p-link.otr
 ```
 
-The recording is written to `FILE.part` and only moved over `FILE` when the
-run quits cleanly (a script `quit` or `quit 0`), so a failed or aborted run
-never replaces a good recording. Recording and replaying need
+The recording is written to `FILE.part` and only moved over `FILE` (in one
+atomic step) when the run quits cleanly, so a failed or aborted run never
+replaces a good recording. With a dev script, only the script's `quit` or
+`quit 0` counts as clean; closing the window or Ctrl+C aborts the recording
+and exits 1. Recording by hand without a script, closing the window finishes
+the recording. If the file can't be written or moved into place, the run
+exits 1 and says where the recording was left. Recording and replaying need
 `--quick-arcade`, because choices in the between-level menus aren't recorded;
 while recording, that menu is skipped even after Quit Level or a game over.
 

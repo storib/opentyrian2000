@@ -24,6 +24,7 @@
 #include "mouse.h"
 #include "network.h"
 #include "opentyr.h"
+#include "sync.h"
 #include "varz.h"
 #include "video.h"
 #include "video_scale.h"
@@ -281,7 +282,10 @@ void service_SDL_events(JE_boolean clear_new)
 				break;
 
 			case SDL_QUIT:
-				// closing the window, or Ctrl+C / SIGTERM on Linux and macOS
+				// Closing the window, or Ctrl+C / SIGTERM on Linux and macOS. That's how a person
+				// finishes recording by hand, but a scripted recording only ends with its quit.
+				if (devscript_enabled)
+					sync_abort_recording();
 				JE_tyrianHalt(0);
 				break;
 		}

@@ -67,6 +67,13 @@ void sync_set_state_dump(const char *path, Uint32 tick);
  */
 int sync_quit(int exit_code);
 
+/**
+ * Stops a recording without completing it: the previous recording file is left as it was,
+ * and quitting afterwards exits with a failure code.  For runs a dev script was driving that
+ * get closed from outside (window closed, Ctrl+C).
+ */
+void sync_abort_recording(void);
+
 /** True when the simulation must be reproducible (recording or replaying). */
 bool sync_is_deterministic(void);
 bool sync_is_replaying(void);
