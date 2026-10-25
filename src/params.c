@@ -25,6 +25,7 @@
 #include "loudness.h"
 #include "network.h"
 #include "opentyr.h"
+#include "sync.h"
 #include "varz.h"
 #include "xmas.h"
 
@@ -66,6 +67,9 @@ void JE_paramCheck(int argc, char *argv[])
 		{ 'l', 'l', "loot",              false },
 
 		{ 258, 0,   "dev-script",        true },
+		{ 259, 0,   "record-input",      true },
+		{ 260, 0,   "replay-input",      true },
+		{ 261, 0,   "hash-log",          true },
 
 		{ 0, 0, NULL, false}
 	};
@@ -102,7 +106,10 @@ void JE_paramCheck(int argc, char *argv[])
 			       "                               (1 or 2)\n"
 			       "  -p, --net-port=PORT          Local port to bind (default is 1333)\n"
 			       "  -d, --net-delay=FRAMES       Set lag-compensation delay (default is 1)\n\n"
-			       "  --dev-script=FILE            Drive the game from a test script (see devscript.h)\n", argv[0]);
+			       "  --dev-script=FILE            Drive the game from a test script (see devscript.h)\n"
+			       "  --record-input=FILE          Record gameplay input and state hashes to FILE\n"
+			       "  --replay-input=FILE          Replay recorded input, checking every state hash\n"
+			       "  --hash-log=FILE              Write the per-tick state hash to FILE\n", argv[0]);
 			exit(0);
 			break;
 			
@@ -221,6 +228,21 @@ void JE_paramCheck(int argc, char *argv[])
 
 		case 258: // --dev-script
 			if (!devscript_load(option.arg))
+				exit(EXIT_FAILURE);
+			break;
+
+		case 259: // --record-input
+			if (!sync_open_record(option.arg))
+				exit(EXIT_FAILURE);
+			break;
+
+		case 260: // --replay-input
+			if (!sync_open_replay(option.arg))
+				exit(EXIT_FAILURE);
+			break;
+
+		case 261: // --hash-log
+			if (!sync_open_hash_log(option.arg))
 				exit(EXIT_FAILURE);
 			break;
 

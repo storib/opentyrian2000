@@ -88,7 +88,10 @@ ALL_CPPFLAGS = -DTARGET_$(PLATFORM) \
                $(EXTRA_CPPFLAGS) \
                $(SDL_CPPFLAGS) \
                $(CPPFLAGS)
+# no fused multiply-adds: they round differently, and lockstep netplay needs every
+# platform to compute bit-identical results
 ALL_CFLAGS = -std=iso9899:1999 \
+             -ffp-contract=off \
              $(CFLAGS)
 ALL_LDFLAGS = $(SDL_LDFLAGS) \
               $(LDFLAGS)

@@ -20,6 +20,7 @@
 
 #include "backgrnd.h"
 #include "config.h"
+#include "dmath.h"
 #include "editship.h"
 #include "episodes.h"
 #include "file.h"
@@ -2390,7 +2391,7 @@ bool load_next_demo(void)
 	return true;
 }
 
-bool replay_demo_keys(void)
+bool replay_demo_keys(PlayerInput *input, bool buttons[4])
 {
 	while (demo_keys_wait == 0)
 	{
@@ -2411,19 +2412,19 @@ bool replay_demo_keys(void)
 	demo_keys_wait--;
 
 	if (demo_keys & (1 << 0))
-		player[0].y -= CURRENT_KEY_SPEED;
+		input->move_y -= CURRENT_KEY_SPEED;
 	if (demo_keys & (1 << 1))
-		player[0].y += CURRENT_KEY_SPEED;
+		input->move_y += CURRENT_KEY_SPEED;
 
 	if (demo_keys & (1 << 2))
-		player[0].x -= CURRENT_KEY_SPEED;
+		input->move_x -= CURRENT_KEY_SPEED;
 	if (demo_keys & (1 << 3))
-		player[0].x += CURRENT_KEY_SPEED;
+		input->move_x += CURRENT_KEY_SPEED;
 
-	button[0] = (bool)(demo_keys & (1 << 4));
-	button[3] = (bool)(demo_keys & (1 << 5));
-	button[1] = (bool)(demo_keys & (1 << 6));
-	button[2] = (bool)(demo_keys & (1 << 7));
+	buttons[0] = (bool)(demo_keys & (1 << 4));
+	buttons[3] = (bool)(demo_keys & (1 << 5));
+	buttons[1] = (bool)(demo_keys & (1 << 6));
+	buttons[2] = (bool)(demo_keys & (1 << 7));
 
 	return true;
 }
@@ -3494,6 +3495,199 @@ void JE_pauseGame(void)
 	mouseSetRelative(true);
 }
 
+/**
+ * Reads one player's input for this tick: from a replay if one is playing, otherwise from
+ * the demo or the player's input devices (and records it if recording).
+ */
+static void read_player_input(PlayerInput *input, JE_byte playerNum_, JE_byte inputDevice)
+{
+	memset(input, 0, sizeof(*input));
+
+	if (sync_is_replaying())
+	{
+		sync_replay_input(playerNum_, input);
+		return;
+	}
+
+	bool buttons[4] = { false, false, false, false };
+
+	if (record_demo || play_demo)
+		inputDevice = 1;  // keyboard is required device for demo recording
+
+	// demo playback input
+	if (play_demo)
+	{
+		if (!replay_demo_keys(input, buttons))
+		{
+			endLevel = true;
+			levelEnd = 40;
+		}
+	}
+
+	/* joystick input */
+	if ((inputDevice == 0 || inputDevice >= 3) && joysticks > 0)
+	{
+		int j = inputDevice  == 0 ? 0 : inputDevice - 3;
+		int j_max = inputDevice == 0 ? joysticks : inputDevice - 3 + 1;
+		for (; j < j_max; j++)
+		{
+			poll_joystick(j);
+
+			if (joystick[j].analog)
+			{
+				input->analog_x += joystick_axis_reduce(j, joystick[j].x);
+				input->analog_y += joystick_axis_reduce(j, joystick[j].y);
+
+				input->link_gun_analog = joystick_analog_angle(j, &input->link_gun_angle);
+			}
+			else
+			{
+				input->move_x += (joystick[j].direction[3] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[1] ? CURRENT_KEY_SPEED : 0);
+				input->move_y += (joystick[j].direction[0] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[2] ? CURRENT_KEY_SPEED : 0);
+			}
+
+			buttons[0] |= joystick[j].action[0];
+			buttons[1] |= joystick[j].action[2];
+			buttons[2] |= joystick[j].action[3];
+			buttons[3] |= joystick[j].action_pressed[1];
+
+			ingamemenu_pressed |= joystick[j].action_pressed[4];
+			pause_pressed |= joystick[j].action_pressed[5];
+		}
+	}
+
+	service_SDL_events(false);
+
+	/* mouse input */
+	if ((inputDevice == 0 || inputDevice == 2) && has_mouse)
+	{
+		buttons[0] |= mouse_pressed[0];
+		buttons[1] |= mouse_pressed[1];
+		buttons[2] |= mouse_pressed[2];
+		buttons[3] |= mouse_pressed[3];
+
+		Sint32 mouseXR;
+		Sint32 mouseYR;
+		mouseGetRelativePosition(&mouseXR, &mouseYR);
+		input->analog_x += mouseXR;
+		input->analog_y += mouseYR;
+	}
+
+	/* keyboard input */
+	if ((inputDevice == 0 || inputDevice == 1) && !play_demo)
+	{
+		if (keysactive[keySettings[KEY_SETTING_UP]])
+			input->move_y -= CURRENT_KEY_SPEED;
+		if (keysactive[keySettings[KEY_SETTING_DOWN]])
+			input->move_y += CURRENT_KEY_SPEED;
+
+		if (keysactive[keySettings[KEY_SETTING_LEFT]])
+			input->move_x -= CURRENT_KEY_SPEED;
+		if (keysactive[keySettings[KEY_SETTING_RIGHT]])
+			input->move_x += CURRENT_KEY_SPEED;
+
+		buttons[0] = buttons[0] || keysactive[keySettings[KEY_SETTING_FIRE]];
+		buttons[3] = buttons[3] || keysactive[keySettings[KEY_SETTING_CHANGE_FIRE]];
+		buttons[1] = buttons[1] || keysactive[keySettings[KEY_SETTING_LEFT_SIDEKICK]];
+		buttons[2] = buttons[2] || keysactive[keySettings[KEY_SETTING_RIGHT_SIDEKICK]];
+
+		if (constantPlay)
+		{
+			for (unsigned int i = 0; i < 4; i++)
+				buttons[i] = true;
+
+			++input->move_y;
+			input->move_x += constantLastX;
+		}
+
+		// TODO: check if demo recording still works
+		if (record_demo)
+		{
+			bool new_input = false;
+
+			for (unsigned int i = 0; i < 8; i++)
+			{
+				bool temp = demo_keys & (1 << i);
+				if (temp != keysactive[keySettings[i]])
+					new_input = true;
+			}
+
+			demo_keys_wait++;
+
+			if (new_input)
+			{
+				Uint8 temp2[2] = { demo_keys_wait >> 8, demo_keys_wait };
+				fwrite_u8(temp2, 2, demo_file);
+
+				demo_keys = 0;
+				for (unsigned int i = 0; i < 8; i++)
+					demo_keys |= keysactive[keySettings[i]] ? (1 << i) : 0;
+
+				fwrite_u8(&demo_keys, 1, demo_file);
+
+				demo_keys_wait = 0;
+			}
+		}
+	}
+
+	// bit i of the packed buttons is button[i]
+	for (int i = 0; i < 4; i++)
+		input->buttons |= buttons[i] << i;
+
+	sync_record_input(playerNum_, input);
+}
+
+/** Moves a ship by one tick of input; everything here is simulation and must be deterministic. */
+static void apply_player_input(Player *this_player, const PlayerInput *input,
+                               JE_word *mouseX_, JE_word *mouseY_,
+                               JE_integer *accelXC, JE_integer *accelYC)
+{
+	this_player->x += input->move_x;
+	this_player->y += input->move_y;
+
+	for (int i = 0; i < 4; i++)
+		button[i] = (input->buttons >> i) & 1;
+
+	JE_integer mouseXC = input->analog_x,
+	           mouseYC = input->analog_y;
+
+	if (smoothies[9-1])
+	{
+		*mouseY_ = this_player->y - (*mouseY_ - this_player->y);
+		mouseYC = -mouseYC;
+	}
+
+	*accelXC += this_player->x - *mouseX_;
+	*accelYC += this_player->y - *mouseY_;
+
+	if (mouseXC > 30)
+		mouseXC = 30;
+	else if (mouseXC < -30)
+		mouseXC = -30;
+	if (mouseYC > 30)
+		mouseYC = 30;
+	else if (mouseYC < -30)
+		mouseYC = -30;
+
+	if (mouseXC > 0)
+		this_player->x += (mouseXC + 3) / 4;
+	else if (mouseXC < 0)
+		this_player->x += (mouseXC - 3) / 4;
+	if (mouseYC > 0)
+		this_player->y += (mouseYC + 3) / 4;
+	else if (mouseYC < 0)
+		this_player->y += (mouseYC - 3) / 4;
+
+	if (mouseXC > 3)
+		++*accelXC;
+	else if (mouseXC < -2)
+		--*accelXC;
+	if (mouseYC > 2)
+		++*accelYC;
+	else if (mouseYC < -2)
+		--*accelYC;
+}
+
 void JE_playerMovement(Player *this_player,
                        JE_byte inputDevice,
                        JE_byte playerNum_,
@@ -3501,7 +3695,6 @@ void JE_playerMovement(Player *this_player,
                        Sprite2_array *shipGrPtr_,
                        JE_word *mouseX_, JE_word *mouseY_)
 {
-	JE_integer mouseXC, mouseYC;
 	JE_integer accelXC, accelYC;
 
 	if (playerNum_ == 2 || !twoPlayerMode)
@@ -3527,8 +3720,6 @@ redo:
 		inputDevice = 0;
 	}
 
-	mouseXC = 0;
-	mouseYC = 0;
 	accelXC = 0;
 	accelYC = 0;
 
@@ -3663,160 +3854,12 @@ redo:
 			}
 			else
 			{
-				if (record_demo || play_demo)
-					inputDevice = 1;  // keyboard is required device for demo recording
+				PlayerInput input;
+				read_player_input(&input, playerNum_, inputDevice);
+				apply_player_input(this_player, &input, mouseX_, mouseY_, &accelXC, &accelYC);
 
-				// demo playback input
-				if (play_demo)
-				{
-					if (!replay_demo_keys())
-					{
-						endLevel = true;
-						levelEnd = 40;
-					}
-				}
-
-				/* joystick input */
-				if ((inputDevice == 0 || inputDevice >= 3) && joysticks > 0)
-				{
-					int j = inputDevice  == 0 ? 0 : inputDevice - 3;
-					int j_max = inputDevice == 0 ? joysticks : inputDevice - 3 + 1;
-					for (; j < j_max; j++)
-					{
-						poll_joystick(j);
-
-						if (joystick[j].analog)
-						{
-							mouseXC += joystick_axis_reduce(j, joystick[j].x);
-							mouseYC += joystick_axis_reduce(j, joystick[j].y);
-
-							link_gun_analog = joystick_analog_angle(j, &link_gun_angle);
-						}
-						else
-						{
-							this_player->x += (joystick[j].direction[3] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[1] ? CURRENT_KEY_SPEED : 0);
-							this_player->y += (joystick[j].direction[0] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[2] ? CURRENT_KEY_SPEED : 0);
-						}
-
-						button[0] |= joystick[j].action[0];
-						button[1] |= joystick[j].action[2];
-						button[2] |= joystick[j].action[3];
-						button[3] |= joystick[j].action_pressed[1];
-
-						ingamemenu_pressed |= joystick[j].action_pressed[4];
-						pause_pressed |= joystick[j].action_pressed[5];
-					}
-				}
-
-				service_SDL_events(false);
-
-				/* mouse input */
-				if ((inputDevice == 0 || inputDevice == 2) && has_mouse)
-				{
-					button[0] |= mouse_pressed[0];
-					button[1] |= mouse_pressed[1];
-					button[2] |= mouse_pressed[2];
-					button[3] |= mouse_pressed[3];
-
-					Sint32 mouseXR;
-					Sint32 mouseYR;
-					mouseGetRelativePosition(&mouseXR, &mouseYR);
-					mouseXC += mouseXR;
-					mouseYC += mouseYR;
-				}
-
-				/* keyboard input */
-				if ((inputDevice == 0 || inputDevice == 1) && !play_demo)
-				{
-					if (keysactive[keySettings[KEY_SETTING_UP]])
-						this_player->y -= CURRENT_KEY_SPEED;
-					if (keysactive[keySettings[KEY_SETTING_DOWN]])
-						this_player->y += CURRENT_KEY_SPEED;
-
-					if (keysactive[keySettings[KEY_SETTING_LEFT]])
-						this_player->x -= CURRENT_KEY_SPEED;
-					if (keysactive[keySettings[KEY_SETTING_RIGHT]])
-						this_player->x += CURRENT_KEY_SPEED;
-
-					button[0] = button[0] || keysactive[keySettings[KEY_SETTING_FIRE]];
-					button[3] = button[3] || keysactive[keySettings[KEY_SETTING_CHANGE_FIRE]];
-					button[1] = button[1] || keysactive[keySettings[KEY_SETTING_LEFT_SIDEKICK]];
-					button[2] = button[2] || keysactive[keySettings[KEY_SETTING_RIGHT_SIDEKICK]];
-
-					if (constantPlay)
-					{
-						for (unsigned int i = 0; i < 4; i++)
-							button[i] = true;
-
-						++this_player->y;
-						this_player->x += constantLastX;
-					}
-
-					// TODO: check if demo recording still works
-					if (record_demo)
-					{
-						bool new_input = false;
-
-						for (unsigned int i = 0; i < 8; i++)
-						{
-							bool temp = demo_keys & (1 << i);
-							if (temp != keysactive[keySettings[i]])
-								new_input = true;
-						}
-
-						demo_keys_wait++;
-
-						if (new_input)
-						{
-							Uint8 temp2[2] = { demo_keys_wait >> 8, demo_keys_wait };
-							fwrite_u8(temp2, 2, demo_file);
-
-							demo_keys = 0;
-							for (unsigned int i = 0; i < 8; i++)
-								demo_keys |= keysactive[keySettings[i]] ? (1 << i) : 0;
-
-							fwrite_u8(&demo_keys, 1, demo_file);
-
-							demo_keys_wait = 0;
-						}
-					}
-				}
-
-				if (smoothies[9-1])
-				{
-					*mouseY_ = this_player->y - (*mouseY_ - this_player->y);
-					mouseYC = -mouseYC;
-				}
-
-				accelXC += this_player->x - *mouseX_;
-				accelYC += this_player->y - *mouseY_;
-
-				if (mouseXC > 30)
-					mouseXC = 30;
-				else if (mouseXC < -30)
-					mouseXC = -30;
-				if (mouseYC > 30)
-					mouseYC = 30;
-				else if (mouseYC < -30)
-					mouseYC = -30;
-
-				if (mouseXC > 0)
-					this_player->x += (mouseXC + 3) / 4;
-				else if (mouseXC < 0)
-					this_player->x += (mouseXC - 3) / 4;
-				if (mouseYC > 0)
-					this_player->y += (mouseYC + 3) / 4;
-				else if (mouseYC < 0)
-					this_player->y += (mouseYC - 3) / 4;
-
-				if (mouseXC > 3)
-					accelXC++;
-				else if (mouseXC < -2)
-					accelXC--;
-				if (mouseYC > 2)
-					accelYC++;
-				else if (mouseYC < -2)
-					accelYC--;
+				link_gun_analog = input.link_gun_analog;
+				link_gun_angle = input.link_gun_angle;
 
 			}   /*endLevel*/
 
@@ -4089,11 +4132,11 @@ redo:
 
 			// turret direction marker/shield
 			shotMultiPos[SHOT_MISC] = 0;
-			b = player_shot_create(0, SHOT_MISC, this_player->x + 1 + roundf(sinf(linkGunDirec + 0.2f) * 26), this_player->y + roundf(cosf(linkGunDirec + 0.2f) * 26), *mouseX_, *mouseY_, 148, playerNum_);
+			b = player_shot_create(0, SHOT_MISC, this_player->x + 1 + roundf(dm_sinf(linkGunDirec + 0.2f) * 26), this_player->y + roundf(dm_cosf(linkGunDirec + 0.2f) * 26), *mouseX_, *mouseY_, 148, playerNum_);
 			shotMultiPos[SHOT_MISC] = 0;
-			b = player_shot_create(0, SHOT_MISC, this_player->x + 1 + roundf(sinf(linkGunDirec - 0.2f) * 26), this_player->y + roundf(cosf(linkGunDirec - 0.2f) * 26), *mouseX_, *mouseY_, 148, playerNum_);
+			b = player_shot_create(0, SHOT_MISC, this_player->x + 1 + roundf(dm_sinf(linkGunDirec - 0.2f) * 26), this_player->y + roundf(dm_cosf(linkGunDirec - 0.2f) * 26), *mouseX_, *mouseY_, 148, playerNum_);
 			shotMultiPos[SHOT_MISC] = 0;
-			b = player_shot_create(0, SHOT_MISC, this_player->x + 1 + roundf(sinf(linkGunDirec) * 26), this_player->y + roundf(cosf(linkGunDirec) * 26), *mouseX_, *mouseY_, 147, playerNum_);
+			b = player_shot_create(0, SHOT_MISC, this_player->x + 1 + roundf(dm_sinf(linkGunDirec) * 26), this_player->y + roundf(dm_cosf(linkGunDirec) * 26), *mouseX_, *mouseY_, 147, playerNum_);
 
 			if (shotRepeat[SHOT_REAR] > 0)
 			{
@@ -4102,7 +4145,7 @@ redo:
 			else if (button[1-1])
 			{
 				shotMultiPos[SHOT_REAR] = 0;
-				b = player_shot_create(0, SHOT_REAR, this_player->x + 1 + roundf(sinf(linkGunDirec) * 20), this_player->y + roundf(cosf(linkGunDirec) * 20), *mouseX_, *mouseY_, linkGunWeapons[this_player->items.weapon[REAR_WEAPON].id-1], playerNum_);
+				b = player_shot_create(0, SHOT_REAR, this_player->x + 1 + roundf(dm_sinf(linkGunDirec) * 20), this_player->y + roundf(dm_cosf(linkGunDirec) * 20), *mouseX_, *mouseY_, linkGunWeapons[this_player->items.weapon[REAR_WEAPON].id-1], playerNum_);
 				player_shot_set_direction(b, this_player->items.weapon[REAR_WEAPON].id, linkGunDirec);
 			}
 		}
@@ -4448,16 +4491,16 @@ redo:
 					this_player->sidekick[LEFT_SIDEKICK].y = MAX(10, this_player->y - 20);
 					break;
 				case 4:  // orbiting
-					this_player->sidekick[LEFT_SIDEKICK].x = this_player->x + roundf(sinf(optionSatelliteRotate) * 20);
-					this_player->sidekick[LEFT_SIDEKICK].y = this_player->y + roundf(cosf(optionSatelliteRotate) * 20);
+					this_player->sidekick[LEFT_SIDEKICK].x = this_player->x + roundf(dm_sinf(optionSatelliteRotate) * 20);
+					this_player->sidekick[LEFT_SIDEKICK].y = this_player->y + roundf(dm_cosf(optionSatelliteRotate) * 20);
 					break;
 				}
 
 				switch (this_player->sidekick[RIGHT_SIDEKICK].style)
 				{
 				case 4:  // orbiting
-					this_player->sidekick[RIGHT_SIDEKICK].x = this_player->x - roundf(sinf(optionSatelliteRotate) * 20);
-					this_player->sidekick[RIGHT_SIDEKICK].y = this_player->y - roundf(cosf(optionSatelliteRotate) * 20);
+					this_player->sidekick[RIGHT_SIDEKICK].x = this_player->x - roundf(dm_sinf(optionSatelliteRotate) * 20);
+					this_player->sidekick[RIGHT_SIDEKICK].y = this_player->y - roundf(dm_cosf(optionSatelliteRotate) * 20);
 					break;
 				case 1:  // trailing
 				case 3:

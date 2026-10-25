@@ -26,4 +26,6 @@ unsigned long mt_rand(void);
 float mt_rand_1(void);
 float mt_rand_lt1(void);
 
+unsigned long long mt_state_digest(void);
+
 #endif /* MTRAND_H */

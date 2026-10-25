@@ -927,6 +927,8 @@ start_level_first:
 	}
 #endif
 
+	sync_level_start(mainLevel);
+
 	initialize_starfield();
 
 	JE_setNewGameSpeed();
@@ -1089,6 +1091,8 @@ start_level_first:
 	BKwrap3 = BKwrap3to = &megaData3.mainmap[1][0];
 
 level_loop:
+
+	sync_tick_begin();
 
 	//tempScreenSeg = game_screen; /* side-effect of game_screen */
 
@@ -2390,6 +2394,8 @@ draw_player_shot_loop_end:
 
 	/*Other Network Functions*/
 	JE_handleChat();
+
+	sync_tick_end();
 
 	if (reallyEndLevel)
 	{

@@ -92,6 +92,20 @@ unsigned long mt_rand(void)
 	return y;
 }
 
+/* digest of the generator state, for checking that two simulations agree */
+unsigned long long mt_state_digest(void)
+{
+	unsigned long long h = 14695981039346656037ULL;
+	for (int i = 0; i < N; ++i)
+	{
+		h ^= x[i] & 0xffffffffUL;
+		h *= 1099511628211ULL;
+	}
+	h ^= p0 ? (unsigned long long)(p0 - x) : N;
+	h *= 1099511628211ULL;
+	return h;
+}
+
 /* generates a random number on the interval [0,1]. */
 float mt_rand_1(void)
 {
