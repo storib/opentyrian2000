@@ -1,4 +1,0 @@
-warning: failed to open 'tyrian.cfg': No such file or directory
-warning: failed to open 'opentyrian.cfg': No such file or directory
-warning: failed to open 'tyrian.sav': No such file or directory
-replay: finished, 635 ticks verified
