@@ -35,7 +35,7 @@
  *   shot PATH             save the next presented frame as a BMP
  *   window W H            resize the window
  *   mode NAME             set the scaling mode (e.g. Widescreen)
- *   quit                  exit the game
+ *   quit [CODE]           exit the game, with exit code CODE (default 0)
  *
  * Lines starting with '#' are comments.
  */

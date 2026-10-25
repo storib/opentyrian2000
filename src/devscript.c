@@ -152,7 +152,10 @@ static void run_line(const char *line, Uint32 now)
 	}
 	else if (strcmp(command, "quit") == 0)
 	{
-		JE_tyrianHalt(0);
+		const int code = atoi(arg1);
+		if (code != 0)
+			fprintf(stderr, "devscript: quit with exit code %d\n", code);
+		JE_tyrianHalt(code);
 	}
 	else
 	{

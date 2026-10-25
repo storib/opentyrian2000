@@ -1,21 +1,30 @@
 # Navigates from a fresh start (default settings) to 2 Player Arcade, episode 1, normal.
 # Shared by the record and replay scripts; keep them in step.
 # Then waits; the game exits by itself when the replay ends (exit code 0) or diverges (3).
+# Screenshots go to tests/sync/out/ if that folder exists (CI uploads them).
 window 640 400
 wait 9000
+shot tests/sync/out/1-title.bmp
 key Return
 wait 1500
 key Down
 key Down
 key Down
+shot tests/sync/out/2-players.bmp
 key Return
 wait 1500
+shot tests/sync/out/3-episode.bmp
 key Return
 wait 1500
+shot tests/sync/out/4-difficulty.bmp
 key Return
 wait 5000
+shot tests/sync/out/5-game-menu.bmp
 key Return
 wait 4000
+shot tests/sync/out/6-level.bmp
 
+# The replay should have ended long before this; reaching it means it got stuck.
 wait 120000
-quit
+shot tests/sync/out/7-timeout.bmp
+quit 4

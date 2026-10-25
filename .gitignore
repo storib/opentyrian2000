@@ -35,3 +35,6 @@ tyrian.sav
 
 # Doxygen output
 /doc/doxygen/
+
+# Sync test output
+/tests/sync/out/
