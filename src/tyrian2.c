@@ -2055,7 +2055,12 @@ draw_player_shot_loop_end:
 
 	/*------- Random Explosions --------*/
 	if (randomExplosions && mt_rand() % 10 == 1)
-		JE_setupExplosionLarge(false, 20, mt_rand() % 280, mt_rand() % 180);
+	{
+		// draw x before y: argument evaluation order differs between compilers
+		const int explosion_x = mt_rand() % 280;
+		const int explosion_y = mt_rand() % 180;
+		JE_setupExplosionLarge(false, 20, explosion_x, explosion_y);
+	}
 
 	/*=================================*/
 	/*=======The Sound Routine=========*/

@@ -482,7 +482,10 @@ void initialize_starfield(void)
 {
 	for (int i = MAX_STARS-1; i >= 0; --i)
 	{
-		starfield_stars[i].position = mt_rand() % 320 + mt_rand() % 200 * VGAScreen->pitch;
+		// draw x before y: operand evaluation order differs between compilers
+		const unsigned int star_x = mt_rand() % 320;
+		const unsigned int star_y = mt_rand() % 200;
+		starfield_stars[i].position = star_x + star_y * VGAScreen->pitch;
 		starfield_stars[i].speed = mt_rand() % 3 + 2;
 		starfield_stars[i].color = mt_rand() % 16 + STARFIELD_HUE;
 	}

@@ -4290,7 +4290,10 @@ redo:
 					}
 					else
 					{
-						b = player_shot_create(0, SHOT_NORTSPARKS, tempW + (mt_rand() % 8) - 4, this_player->y + (mt_rand() % 8) - 4, *mouseX_, *mouseY_, 671, 1);
+						// draw x before y: argument evaluation order differs between compilers
+						const int spark_x = tempW + (mt_rand() % 8) - 4;
+						const int spark_y = this_player->y + (mt_rand() % 8) - 4;
+						b = player_shot_create(0, SHOT_NORTSPARKS, spark_x, spark_y, *mouseX_, *mouseY_, 671, 1);
 						shotRepeat[SHOT_NORTSPARKS] = abs(ship_banking) - 1;
 					}
 				}

@@ -823,7 +823,10 @@ void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 			}
 			else
 			{
-				b = player_shot_create(0, SHOT_SPECIAL, mt_rand() % 280, mt_rand() % 180, mouseX, mouseY, specialWeaponWpn, playerNum);
+				// draw x before y: argument evaluation order differs between compilers
+				const JE_word shot_x = mt_rand() % 280;
+				const JE_word shot_y = mt_rand() % 180;
+				b = player_shot_create(0, SHOT_SPECIAL, shot_x, shot_y, mouseX, mouseY, specialWeaponWpn, playerNum);
 			}
 
 			if (spraySpecial && b != MAX_PWEAPON)
