@@ -1,0 +1,44 @@
+# Navigates from a fresh start (default settings) to 2 Player Arcade, episode 1, normal.
+# Shared by the record and replay scripts; keep them in step.
+# Then plays ~19 seconds; run with --record-input to make a new recording.
+window 640 400
+wait 9000
+key Return
+wait 1500
+key Down
+key Down
+key Down
+key Return
+wait 1500
+key Return
+wait 1500
+key Return
+wait 5000
+key Return
+wait 4000
+
+down Space
+down Left
+wait 1500
+up Left
+down Up
+wait 1000
+up Up
+down Right
+wait 3000
+up Right
+key Left_Ctrl 300
+down Down
+wait 800
+up Down
+wait 3000
+down Left
+wait 2000
+up Left
+key Return 200
+down Right
+wait 2500
+up Right
+up Space
+wait 2000
+quit

@@ -1,0 +1,21 @@
+# Navigates from a fresh start (default settings) to 2 Player Arcade, episode 1, normal.
+# Shared by the record and replay scripts; keep them in step.
+# Then waits; the game exits by itself when the replay ends (exit code 0) or diverges (3).
+window 640 400
+wait 9000
+key Return
+wait 1500
+key Down
+key Down
+key Down
+key Return
+wait 1500
+key Return
+wait 1500
+key Return
+wait 5000
+key Return
+wait 4000
+
+wait 120000
+quit

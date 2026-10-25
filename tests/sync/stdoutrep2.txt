@@ -1,0 +1,16 @@
+
+Welcome to... >> OpenTyrian2000 v2.1.??? <<
+
+Copyright (C) 2022 The OpenTyrian Development Team
+Copyright (C) 2022 Kaito Sinclaire
+
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions.  See the file COPYING for details.
+
+
+Invalid or missing TYRIAN.CFG! Continuing using defaults.
+
+no joysticks detected
+assuming mouse detected
+audio disabled

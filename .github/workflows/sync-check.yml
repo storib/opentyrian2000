@@ -1,0 +1,69 @@
+name: Build and sync check
+
+# Builds on Windows, Linux and macOS, then replays a recorded game on each.  The
+# replay checks the simulation's state hash every tick, so this fails if any
+# platform computes the game differently (which would desync online play).
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            shell: msys2 {0}
+          - os: ubuntu-latest
+            shell: bash
+          - os: macos-latest
+            shell: bash
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            make unzip
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-SDL2
+            mingw-w64-ucrt-x86_64-SDL2_net
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-net-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sdl2 sdl2_net pkg-config
+
+      - name: Build
+        run: make -j4
+
+      - name: Fetch Tyrian 2000 data (freeware release)
+        run: |
+          curl -fsSL -o tyrian2000.zip https://www.camanis.net/tyrian/tyrian2000.zip
+          unzip -q tyrian2000.zip
+          mv tyrian2000 data
+
+      - name: Replay sync check
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: >-
+          ./opentyrian2000 --no-sound
+          --dev-script=tests/sync/2p-arcade-replay.txt
+          --replay-input=tests/sync/2p-arcade.otr

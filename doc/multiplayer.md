@@ -4,9 +4,10 @@ Status: draft / proposal. Nothing here is implemented yet.
 
 ## Goals
 
-- **Up to 4 players over the internet**, at most 2 per computer (4 PCs × 1,
-  2 PCs × 2, or 1 × 2 + 2 × 1). Four local players on one PC is also allowed,
-  mainly as a development/testing mode.
+- **4 players on two computers, 2 per computer**, as the main target. The two
+  computers can be any mix of **Windows and macOS** (Linux comes for free).
+  The design also allows other splits (4 × 1, 2 + 1 + 1), and four local
+  players on one PC as a development/testing mode.
 - **Start from inside the game.** Host / Join with a short room code. No IP
   addresses, port forwarding, or command-line flags.
 - **Reliable.** If the games ever disagree, both players are told exactly when
@@ -119,12 +120,35 @@ and Debian/Ubuntu (`libenet-dev`).
 - **Saves:** 2-player saves use their own slots (`twoPlayerMode ? 22 : 11`).
   Online games won't save at first.
 
+## Cross-platform determinism (PC ↔ Mac)
+
+Lockstep only works if every machine computes **bit-identical** results.
+
+- **Integer maths** is the same everywhere.
+- **Basic float operations** (`+ − × ÷`, `sqrtf`, `roundf`) are exactly
+  specified by IEEE 754 and identical everywhere, as long as the compiler
+  doesn't fuse `a*b+c` into one instruction. `-ffp-contract=off` is set in the
+  Makefile for that; clang, used on macOS, fuses by default.
+- **Library trig (`sinf`, `cosf`) is not guaranteed** to match between Windows,
+  macOS and Linux. The simulation uses `dm_sinf`/`dm_cosf` (`src/dmath.c`)
+  instead. These use only basic operations, and agree with libm to within
+  1e-6 (same pixel after rounding). Visual-only code (starfield, menus, audio)
+  keeps libm.
+- **The RNG** (Mersenne Twister) uses `unsigned long`, which is 32 bits on
+  Windows and 64 on macOS. Its values are masked to 32 bits, so it matches.
+- **Settings that change gameplay** must match on every machine: difficulty,
+  and possibly detail level or game speed if they alter what the simulation
+  does. The host's settings will be sent at game start (M3).
+- **CI** builds on Windows, Linux and macOS (Apple Silicon). It replays a
+  recorded game on each and checks the state hash every tick
+  (`tests/sync/`).
+
 ## Milestones
 
 | # | Milestone | Done when |
 |---|-----------|-----------|
 | M0 | Infrastructure | Fork on GitHub, local MSYS2 build, CI building Windows and Linux. |
-| M1 | Input layer + determinism tools | `JE_playerMovement()` consumes a `PlayerInput` instead of reading devices directly. Input recorder/replayer and a state hash exist. A headless "replay twice, compare hashes" check passes on every level. Gameplay unchanged. |
+| M1 | Input layer + determinism tools ✅ | `JE_playerMovement()` reads input into a `PlayerInput` and applies it separately. Input recorder/replayer and a per-tick state hash exist (`src/sync.c`; `--record-input`, `--replay-input`, `--hash-log`). A 2-player replay verifies on Windows, Linux and macOS in CI. Gameplay unchanged. |
 | M2 | N-player, local | 4 slots on one PC, duplicated ships with tints, 4-player HUD, per-slot bindings. |
 | M3 | Netcode v2 on LAN | ENet transport, embedded relay, in-game Host/Join, 2–4 players, desync reporting. Old `network.c` removed. |
 | M4 | Internet | Standalone relay on a droplet, room codes, deploy script, ping display, adaptive input delay. |
