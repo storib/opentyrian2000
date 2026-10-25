@@ -25,9 +25,9 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
 | M0 Infrastructure | ✅ Fork, MSYS2 build, CI on Windows/Linux/macOS |
 | Widescreen | ✅ Sharp scaling; in-game, playfield centered with the HUD panel moved beside it |
 | M1 Input layer + determinism tools | ✅ Adversarially reviewed in 3 rounds; all findings fixed |
-| M2 4-player core | Next. Not started |
-| M3 Netcode v2 (LAN, Host/Join in menus) | Not started |
-| M4 Internet relay (DigitalOcean droplet, room codes) | Not started |
+| M3 Netcode v2 (relay, room codes, LAN, Host/Join in menus) | ✅ Built before M2, so 2 players (one per computer). Tested with two instances on one PC (`tests/net/`); not yet between two real computers |
+| M2 4-player core | Not started. Still at most 2 players per computer |
+| M4 Internet (droplet, adaptive delay, ping) | Relay server and deploy script exist; the droplet isn't set up yet |
 
 **Known gaps:**
 - No sync recording yet exercises orbiting sidekicks, special weapons,
@@ -37,6 +37,11 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
   makes it do so.
 - The attract-mode demo can still be ended by a real keypress, which is
   harmless for sync.
+- The game's default relay address (`NET_DEFAULT_RELAY` in `src/netplay.c`)
+  is a placeholder until the droplet exists. Until then, internet games need
+  `--relay=HOST` or `[network] relay=` in `opentyrian.cfg`.
+- The relay waits for every player's input; a player with a bad connection
+  slows everyone down. Repeating a late input is planned for M4.
 
 ## Repository
 
@@ -45,7 +50,8 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
 - **Stacked branches**, each built on the previous one:
   - `multiplayer/design`: the design doc.
   - `widescreen-hud`: dev scripts, widescreen.
-  - `m1-sync`: everything since, and the current tip.
+  - `m1-sync`: the input layer and determinism tools.
+  - `m3-netcode`: the new netcode, and the current tip.
 - **Untracked local files:** `data/` (the game data), `*.dll` and the built
   exe are git-ignored. The game writes `opentyrian.cfg`, `tyrian.cfg` and
   `tyrian.sav` into its working directory, also ignored.
@@ -59,29 +65,42 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
 | `src/devscript.c/.h` | `--dev-script`: scripted keys, mouse and screenshots |
 | `src/dmath.c/.h` | `dm_sinf` / `dm_cosf`: deterministic trig for the simulation |
 | `src/video.c/.h` | Widescreen mode, sharp scaling, `video_hud_split` |
-| `src/tyrian2.c` | Level loop hooks (`sync_*`), `--quick-arcade` (`quickStartArcade`, `setupNewGame`) |
+| `src/tyrian2.c` | Level loop hooks (`sync_*`, `net_tick_*`), `--quick-arcade` (`quickStartArcade`, `setupNewGame`) |
+| `src/netproto.h` | Network protocol shared by the game and the relay |
+| `src/relay.c/.h`, `relay/main.c` | The relay: in the game for LAN hosting, and the standalone `tyrian-relay` server |
+| `src/netplay.c/.h` | The game's network side: connection, lobby, lockstep, pauses, desync dumps |
+| `src/netmenu.c/.h` | Network Game menu and lobby |
+| `tools/deploy-relay.sh` | Installs the relay on a server as a systemd service |
 | `tests/sync/` | Recordings, record/replay scripts |
+| `tests/net/` | Two-instance network tests (`run-local.ps1`) |
 | `.github/workflows/sync-check.yml` | CI: build on 3 platforms, replay every recording |
 
 ## Building
 
 **Windows:** MSYS2 UCRT64 (installed at `C:\msys64`; needs `make`, `gcc`,
-`pkgconf`, `SDL2`, `SDL2_net`). From PowerShell in the repo:
+`pkgconf`, `SDL2`, `enet`). From PowerShell in the repo:
 
 ```
-$env:MSYSTEM='UCRT64'; $env:CHERE_INVOKING='1'; & C:\msys64\usr\bin\bash.exe -lc 'make -j8'
+$env:MSYSTEM='UCRT64'; $env:CHERE_INVOKING='1'; & C:\msys64\usr\bin\bash.exe -lc 'make -j8 && make relay'
 ```
 
-Then copy `SDL2.dll` and `SDL2_net.dll` from `C:\msys64\ucrt64\bin` next to
-the exe if they aren't already there.
+Then copy `SDL2.dll` and `libenet-7.dll` from `C:\msys64\ucrt64\bin` next to
+the exe if they aren't already there. SDL2_net is no longer used.
+
+- **Stale dependencies:** after a header is deleted, `make` fails with "No rule
+  to make target" for it. Delete `obj/` and build again.
+- **Line endings:** the checkout uses CRLF (`core.autocrlf`). `sed -i` rewrites
+  files with LF, which git then reports as changed on every line. Use the
+  editor tools, or restore files you didn't mean to touch.
 
 - **Data:** the freeware Tyrian 2000 data goes in `data/`, from
   `https://www.camanis.net/tyrian/tyrian2000.zip`.
 - **clang:** a clang toolchain (MSYSTEM=CLANG64, `make CC=clang
   VCS_IDREV=true`) reproduces most macOS compiler behaviour on Windows. Build
   it in a copy of the repo, not in place.
-- **Linux/macOS:** see the CI workflow (apt `libsdl2-dev libsdl2-net-dev`;
-  brew `sdl2 sdl2_net pkg-config`), then `make`.
+- **Linux/macOS:** see the CI workflow (apt `libsdl2-dev libenet-dev`;
+  brew `sdl2 enet pkg-config`), then `make`. `make relay` builds the relay
+  server, which needs only ENet.
 - **Compiler warnings:** the gcc build is warning-free with `-Wall -Wextra
   -pedantic`. Keep it that way. clang shows a few upstream "set but not used"
   warnings.
@@ -98,6 +117,12 @@ the exe if they aren't already there.
 | `--replay-input=FILE` | Replay and verify every tick. |
 | `--hash-log=FILE` | Write each tick's state hash. |
 | `--state-dump=FILE` (+ `--state-dump-tick=N`) | Write every hashed value by name, on divergence or at tick N. Diff two machines' dumps to find what differs. |
+| `--relay=HOST[:PORT]` | Use this relay for internet games, for this run only (default from `opentyrian.cfg`). |
+| `--net-name=NAME` | Your name in network games, for this run only. |
+
+`tyrian-relay [--port=PORT] [--lan]` runs the relay server (default UDP 21900).
+Dev scripts can also type text: `text ABC123`, or `text @FILE` to type a file's
+first line.
 
 **Replay exit codes:**
 
@@ -124,7 +149,10 @@ these rules:
 
 1. **Input only enters through `PlayerInput`** (`read_player_input`) or
    `sync_event()`. Anything else a player does that changes the game must be
-   recorded as an event, or disabled while `sync_is_deterministic()`.
+   recorded as an event, or disabled while `sync_is_deterministic()` (which
+   includes network games). Network games don't carry `sync_event()`s: a choice
+   that changes the game must travel in the input (as pause and the menu do)
+   or come from the host at the start.
 2. **No libm trig in simulation code.** Use `dm_sinf` / `dm_cosf`. `sqrtf`,
    `roundf` and basic arithmetic are fine. Visual-only code (starfield, menus,
    audio) may use libm.
@@ -159,13 +187,21 @@ macOS differences locally.
   ```
   opentyrian2000 --no-sound --quick-arcade=2:1:normal --dev-script=tests/sync/2p-arcade-replay.txt --replay-input=tests/sync/2p-arcade.otr
   ```
+- **Network:** `powershell -File tests/net/run-local.ps1 -Mode internet` (also
+  `lan`, `desync`, `leave`, `menu-leave`) plays two instances against each other through a
+  relay and checks their hashes match on every tick. See tests/net/README.md.
+  The first run may make Windows Firewall ask about the game and the relay.
 - **The regression battery isn't in the repo yet.** The review fixes were
   checked with a 43-check PowerShell script kept outside it (truncated files,
   exit codes, F1/menu/quit recordings, failed saves, window close, option
   parsing). Adding it under `tests/` is worthwhile.
 - **Review history:** an adversarial review agent swept all changes since
   upstream in three rounds (18 findings, all fixed). The commit messages from
-  `23a0509` on describe each fix.
+  `23a0509` on describe each fix. M3 had one round with two reviewers
+  (protocol, and game integration); the M3 commit message lists what they
+  found and what was fixed.
+- **Visual Studio:** `visualc/` was switched from SDL2_net to ENet
+  (`ENetBaseDir`) but has not been built since.
 
 ## Environment gotchas (Windows dev machine)
 

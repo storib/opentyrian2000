@@ -1,6 +1,8 @@
 # Multiplayer v2 — design
 
-Status: draft / proposal. Nothing here is implemented yet.
+Status: M1 and M3 are built (see [Milestones](#milestones) and
+[Netcode as built](#netcode-as-built-m3)). M3 came before M2, so network games
+have 2 players for now, one per computer. The rest of this document is the plan.
 
 ## Goals
 
@@ -17,9 +19,9 @@ Status: draft / proposal. Nothing here is implemented yet.
 - **Ships:** players 3 and 4 reuse existing ships for now. New ship types come
   later.
 
-## What exists today
+## What upstream had (replaced in M3)
 
-- `src/network.c`: 2-player, peer-to-peer UDP over SDL2_net with
+- `src/network.c` (now deleted): 2-player, peer-to-peer UDP over SDL2_net with
   hand-rolled acks, resends and XOR redundancy packets. Its own header says
   "HERE BE DRAGONS".
 - **Deterministic lockstep.** Each side sends its processed input deltas
@@ -87,6 +89,91 @@ and Debian/Ubuntu (`libenet-dev`).
 - Inputs and bundles go on an unreliable sequenced channel, with the last few
   ticks of input sent redundantly in each packet.
 - Lobby, menu choices and hashes go on a reliable channel.
+
+## Netcode as built (M3)
+
+| File | What |
+|------|------|
+| `src/netproto.h` | The protocol: message layouts, ports, limits. Plain C, shared by both sides. |
+| `src/relay.c/.h` | The relay: rooms, input ordering, hash checks, LAN discovery answers. ENet only, no SDL. |
+| `relay/main.c` | `tyrian-relay`, the standalone server (`make relay`). |
+| `src/netplay.c/.h` | The game's side: connecting, lobby state, lockstep, pauses, desync dumps, LAN discovery. |
+| `src/netmenu.c/.h` | The Network Game menu, room-code entry, LAN game list, lobby. |
+| `tools/deploy-relay.sh` | Builds and installs the relay on a server as a systemd service. |
+| `tests/net/` | Two game instances playing each other through a relay. |
+
+**How a tick works.** At the start of every simulation tick T
+(`net_tick_begin()`, called right after `sync_tick_begin()` in the level loop),
+each computer reads its local input, sends it for tick T + D, and waits for the
+relay's bundle for tick T. `read_player_input()` then hands each player the
+bundle's input instead of reading devices. D, the input delay, is chosen by the
+relay when the game starts: `1 + round trip / 29 ms`, at least 2 and at most 10.
+
+- Ticks are counted from the start of the game, across levels. The screens
+  between levels aren't lockstep: whoever finishes them first waits at the next
+  level's first tick.
+- Inputs and bundles travel on an unreliable channel. Every packet repeats
+  everything not yet acknowledged (up to 16 ticks), and a waiting computer
+  resends every 20 ms, so a lost packet costs one resend, not a time-out.
+- Each input also carries the hash of the sender's newest finished tick. When
+  the relay bundles a tick it compares those hashes, so a desync is caught a
+  few ticks after it happens.
+- The relay waits for everyone; it doesn't repeat a late player's input yet
+  (M4). A computer that waits more than half a second shows "Waiting for other
+  players", where Esc leaves the game.
+
+**Pause and the in-game menu** are two extra bits in `PlayerInput.buttons`
+(`PLAYER_INPUT_PAUSE`, `PLAYER_INPUT_MENU`). When a bundle carries one, every
+computer holds at that same tick. In a pause anyone can go on with P or Enter;
+for the menu, the player who opened it decides. Their choice goes to the relay,
+which tells everyone to go on or to quit at that tick. Losing window focus
+doesn't pause a network game. The menu's detail level and game speed can't be
+changed during one.
+
+**How a game ends.**
+
+- Quit from the in-game menu: everyone returns to the lobby at the same tick.
+- Game over: everyone returns to the lobby.
+- A desync or a player leaving: the relay stops bundling after a "stop tick"
+  and tells everyone. Each computer plays up to exactly that tick, then returns
+  to the lobby. After a desync each one writes `desync-tick-N-playerP.txt` (every
+  hashed value, as `--state-dump` does) into its user directory, so the files
+  from the two computers can be diffed.
+- The lobby keeps the room, so the host can start again.
+
+**Settings that change the game** come from the host: episode, difficulty,
+game speed and detail level. Each computer switches to them for the game and
+back afterwards. Network games don't write the "last level" backup save.
+
+**Lobby.** Rooms have 6-character codes (no 0/O or 1/I/L). The host picks the
+episode and difficulty (Easy, Normal or Hard) and starts once someone has
+joined. Players have names, set in the Network Game menu and saved in
+`opentyrian.cfg` (`[network] name`, defaulting to the computer's user name).
+The relay address is saved there too (`[network] relay`).
+
+**LAN games.** "Host LAN Game" runs the relay inside the game, on its own thread
+so it keeps up during loading screens, on UDP 21900. It answers discovery
+broadcasts on UDP 21901, which "Join LAN Game" sends to the network and to this
+computer, so joining needs no address or code.
+
+**The relay's limits:**
+
+- 128 rooms, 256 connections, and 8 connections per IP address.
+- 400 packets per second per connection, and 2 KB per packet. The 2 KB limit is also
+  ENet's own, so bigger packets are refused before they are buffered.
+- A connection must join a room within 5 seconds, and gets one try: after a
+  refusal it is ignored until it disconnects.
+- A room closes when its last player leaves, or after 12 hours.
+- Settings outside the game's ranges are ignored.
+- LAN discovery answers only private, loopback and link-local addresses, one
+  packet per query.
+
+Clients don't trust the relay either: they check the slot numbers and game
+settings it sends before using them.
+
+**Not done yet:** players 3 and 4 (M2; the protocol already has 4 slots and
+lets a computer bring 2 players), adaptive input delay, repeating a late
+player's input, and a ping display (M4).
 
 ## Lobby and server
 
@@ -159,7 +246,7 @@ Lockstep only works if every machine computes **bit-identical** results.
 | M0 | Infrastructure ✅ | Fork on GitHub, local MSYS2 build, CI building Windows, Linux and macOS. |
 | M1 | Input layer + determinism tools ✅ | `JE_playerMovement()` reads input into a `PlayerInput` and applies it separately. Input recorder/replayer and a per-tick state hash exist (`src/sync.c`; `--record-input`, `--replay-input`, `--hash-log`, `--state-dump`). Replays verify on Windows, Linux and macOS in CI. Gameplay unchanged. Adversarially reviewed (3 rounds). |
 | M2 | 4-player core | 4 player slots in the simulation, duplicated ships with tints, 4-player HUD in the widescreen side panels, a second control set so a computer can host its 2 players. No 4-on-one-computer mode: players 3–4 are verified with replays (their input comes from the recording) until M3 lets two computers play for real. |
-| M3 | Netcode v2 on LAN | ENet transport, embedded relay, in-game Host/Join, 2–4 players, desync reporting. Old `network.c` removed. |
+| M3 | Netcode v2 ✅ | ENet transport, embedded relay, in-game Host/Join (internet room codes and LAN discovery), desync reporting. Old `network.c` removed. Built before M2, so 2 players for now (one per computer). Tested with two instances on one computer (`tests/net/`). |
 | M4 | Internet | Standalone relay on a droplet, room codes, deploy script, ping display, adaptive input delay. |
 | M5 | Beyond | Story mode online (shop/menu sync), rejoin after disconnect, new ship types. |
 
@@ -173,7 +260,7 @@ a network.
 - Should online start as **arcade only**, adding story mode with its shop
   later? Recommended: yes.
 - Shared or separate lives, and friendly fire, in 4-player games?
-- Which droplet region suits the group?
+- ~~Which droplet region suits the group?~~ San Francisco (decided 2026-10-25).
 - **Licensing.** The code is GPLv2, so the fork, including the relay, stays
   GPLv2. The Tyrian 2000 data files are freeware but not ours. Releases
   should either download them from the official link or check their

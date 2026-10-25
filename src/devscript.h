@@ -34,6 +34,7 @@
  *   down NAME / up NAME   press or release a key, for holding several at once
  *   mouse DX DY           move the mouse by DX, DY
  *   mousedown B / mouseup B   press or release mouse button B (1 left, 2 middle, 3 right)
+ *   text TEXT             type TEXT (e.g. a room code); "text @PATH" types the first line of a file
  *   shot PATH             save the next presented frame as a BMP
  *   window W H            resize the window
  *   mode NAME             set the scaling mode (e.g. Widescreen)

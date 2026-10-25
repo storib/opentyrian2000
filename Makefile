@@ -8,8 +8,6 @@ else
     TYRIAN_DIR = $(gamesdir)/opentyrian2000
 endif
 
-WITH_NETWORK := true
-
 ################################################################################
 
 # see https://www.gnu.org/prep/standards/html_node/Makefile-Conventions.html
@@ -52,10 +50,6 @@ DEPS := $(SRCS:src/%.c=obj/%.d)
 
 ###
 
-ifeq ($(WITH_NETWORK), true)
-    EXTRA_CPPFLAGS += -DWITH_NETWORK
-endif
-
 OPENTYRIAN_VERSION := $(shell $(VCS_IDREV) 2>/dev/null && \
                               touch src/opentyrian_version.h)
 ifneq ($(OPENTYRIAN_VERSION), )
@@ -73,14 +67,19 @@ CFLAGS ?= -pedantic \
 LDFLAGS ?=
 LDLIBS ?=
 
-ifeq ($(WITH_NETWORK), true)
-    SDL_CPPFLAGS := $(shell $(PKG_CONFIG) sdl2 SDL2_net --cflags)
-    SDL_LDFLAGS := $(shell $(PKG_CONFIG) sdl2 SDL2_net --libs-only-L --libs-only-other)
-    SDL_LDLIBS := $(shell $(PKG_CONFIG) sdl2 SDL2_net --libs-only-l)
-else
-    SDL_CPPFLAGS := $(shell $(PKG_CONFIG) sdl2 --cflags)
-    SDL_LDFLAGS := $(shell $(PKG_CONFIG) sdl2 --libs-only-L --libs-only-other)
-    SDL_LDLIBS := $(shell $(PKG_CONFIG) sdl2 --libs-only-l)
+# ENet carries network games (src/netplay.c, src/relay.c)
+SDL_CPPFLAGS := $(shell $(PKG_CONFIG) sdl2 libenet --cflags)
+SDL_LDFLAGS := $(shell $(PKG_CONFIG) sdl2 libenet --libs-only-L --libs-only-other)
+SDL_LDLIBS := $(shell $(PKG_CONFIG) sdl2 libenet --libs-only-l)
+
+# the standalone relay server needs only ENet
+RELAY_TARGET := tyrian-relay
+RELAY_SRCS := relay/main.c src/relay.c
+ENET_CPPFLAGS := $(shell $(PKG_CONFIG) libenet --cflags)
+ENET_LDLIBS := $(shell $(PKG_CONFIG) libenet --libs)
+ifeq ($(PLATFORM), WIN32)
+    RELAY_TARGET := tyrian-relay.exe  # what gcc writes, so make sees it's up to date
+    ENET_LDLIBS += -lws2_32 -lwinmm
 endif
 
 ALL_CPPFLAGS = -DTARGET_$(PLATFORM) \
@@ -103,6 +102,12 @@ ALL_LDLIBS = -lm \
 
 .PHONY : all
 all : $(TARGET)
+
+.PHONY : relay
+relay : $(RELAY_TARGET)
+
+$(RELAY_TARGET) : $(RELAY_SRCS) src/relay.h src/netproto.h
+	$(CC) $(ALL_CFLAGS) $(ENET_CPPFLAGS) $(LDFLAGS) -o $@ $(RELAY_SRCS) $(ENET_LDLIBS)
 
 .PHONY : debug
 debug : CPPFLAGS += -UNDEBUG
@@ -152,6 +157,7 @@ clean :
 	rm -f $(OBJS)
 	rm -f $(DEPS)
 	rm -f $(TARGET)
+	rm -f $(RELAY_TARGET)
 
 $(TARGET) : $(OBJS)
 	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $@ $^ $(ALL_LDLIBS)

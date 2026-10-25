@@ -29,20 +29,21 @@ ctrl/alt       -- fire left/right sidekick
 
 == Network Multiplayer =========================================================
 
-Currently OpenTyrian2000 does not have an arena; as such, networked games must
-be initiated manually via the command line simultaneously by both players.
+This fork plays 2 Player Arcade over the network, one player per computer.
+Choose Start New Game, then Network Game:
 
-syntax:
-  opentyrian2000 --net HOSTNAME --net-player-name NAME --net-player-number NUM
+  Host Internet Game  -- get a room code from the relay server
+  Join Internet Game  -- type the code the host gives you
+  Host LAN Game       -- host on this computer, for players on the same network
+  Join LAN Game       -- pick a game hosted on the same network
 
-where HOSTNAME is the IP address of your opponent, NUM is either 1 or 2
-depending on which ship you intend to pilot, and NAME is your alias
+The host chooses the episode and difficulty in the lobby and starts the game.
+P pauses everyone, and Esc opens the in-game menu for everyone.
 
-OpenTyrian2000 uses UDP port 1333 for multiplayer, but in most cases players
-will not need to open any ports because OpenTyrian2000 makes use of UDP hole
-punching.
-
-Note that Network play has not been tested for OpenTyrian2000.
+Internet games go through a relay server (UDP port 21900); --relay=HOST[:PORT]
+or "relay" in the [network] section of opentyrian.cfg chooses which. LAN games
+use UDP ports 21900 and 21901 on the hosting computer. The relay server,
+tyrian-relay, is built with "make relay". See doc/multiplayer.md.
 
 == Links =======================================================================
 

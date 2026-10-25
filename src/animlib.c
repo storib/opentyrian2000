@@ -20,7 +20,7 @@
 
 #include "file.h"
 #include "keyboard.h"
-#include "network.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "palette.h"
 #include "sizebuf.h"
@@ -190,7 +190,7 @@ void JE_playAnim(const char *animfile, JE_byte startingframe, JE_byte speed)
 			break;
 
 		/* Wait until we need the next frame */
-		NETWORK_KEEP_ALIVE();
+		net_poll();
 		wait_delay();
 	}
 

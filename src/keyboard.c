@@ -22,7 +22,7 @@
 #include "devscript.h"
 #include "joystick.h"
 #include "mouse.h"
-#include "network.h"
+#include "netplay.h"
 #include "opentyr.h"
 #include "sync.h"
 #include "varz.h"
@@ -71,11 +71,6 @@ void wait_input(JE_boolean keyboard, JE_boolean mouse, JE_boolean joystick)
 		SDL_Delay(SDL_POLL_INTERVAL);
 		push_joysticks_as_keyboard();
 		service_SDL_events(false);
-
-#ifdef WITH_NETWORK
-		if (isNetworkGame)
-			network_check();
-#endif
 	}
 }
 
@@ -87,11 +82,6 @@ void wait_noinput(JE_boolean keyboard, JE_boolean mouse, JE_boolean joystick)
 		SDL_Delay(SDL_POLL_INTERVAL);
 		poll_joysticks();
 		service_SDL_events(false);
-
-#ifdef WITH_NETWORK
-		if (isNetworkGame)
-			network_check();
-#endif
 	}
 }
 
@@ -152,6 +142,9 @@ void service_SDL_events(JE_boolean clear_new)
 	}
 
 	devscript_tick();
+
+	// keeps a network connection alive through every screen that waits for input
+	net_poll();
 
 	while (SDL_PollEvent(&ev))
 	{

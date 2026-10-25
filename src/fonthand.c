@@ -18,7 +18,7 @@
  */
 #include "fonthand.h"
 
-#include "network.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "nortvars.h"
 #include "opentyr.h"
@@ -308,7 +308,7 @@ void JE_outTextGlow(SDL_Surface * screen, int x, int y, const char *s)
 				frameCountMax = 0;
 			}
 
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			JE_showVGA();
 
@@ -323,7 +323,7 @@ void JE_outTextGlow(SDL_Surface * screen, int x, int y, const char *s)
 			frameCountMax = 0;
 		}
 
-		NETWORK_KEEP_ALIVE();
+		net_poll();
 
 		JE_showVGA();
 

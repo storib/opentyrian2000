@@ -27,7 +27,7 @@
 #include "mainint.h"
 #include "mouse.h"
 #include "mtrand.h"
-#include "network.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "nortvars.h"
 #include "opentyr.h"
@@ -449,7 +449,7 @@ void JE_tyrianHalt(JE_byte code)
 	deinit_video();
 	deinit_joysticks();
 
-	/* TODO: NETWORK */
+	net_leave();  // so the others hear about it now, not at a time-out
 
 	free_main_shape_tables();
 

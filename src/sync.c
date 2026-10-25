@@ -21,6 +21,7 @@
 #include "backgrnd.h"
 #include "config.h"
 #include "mtrand.h"
+#include "netplay.h"
 #include "player.h"
 #include "shots.h"
 #include "varz.h"
@@ -309,7 +310,7 @@ void sync_set_state_dump(const char *path, Uint32 tick)
 
 bool sync_is_deterministic(void)
 {
-	return record_file != NULL || replay_file != NULL;
+	return record_file != NULL || replay_file != NULL || isNetworkGame;
 }
 
 bool sync_is_replaying(void)
@@ -374,11 +375,16 @@ static Uint64 replay_u64(void) { Uint64 v; if (!get_u64(replay_file, &v)) replay
 /** Writes every value of the state hash, by name, for the current tick. */
 static void write_state_dump(void)
 {
-	dump_file = fopen(state_dump_path, "w");
+	sync_write_state_dump(state_dump_path);
+}
+
+bool sync_write_state_dump(const char *path)
+{
+	dump_file = fopen(path, "w");
 	if (dump_file == NULL)
 	{
-		fprintf(stderr, "error: failed to create state dump '%s'\n", state_dump_path);
-		return;
+		fprintf(stderr, "error: failed to create state dump '%s'\n", path);
+		return false;
 	}
 
 	fprintf(dump_file, "level %u tick %u\n", current_level, (unsigned)sim_tick);
@@ -387,7 +393,8 @@ static void write_state_dump(void)
 
 	fclose(dump_file);
 	dump_file = NULL;
-	fprintf(stderr, "sync: wrote state dump for tick %u to %s\n", (unsigned)sim_tick, state_dump_path);
+	fprintf(stderr, "sync: wrote state dump for tick %u to %s\n", (unsigned)sim_tick, path);
+	return true;
 }
 
 /** Reads the next record type; the end record finishes the replay. */

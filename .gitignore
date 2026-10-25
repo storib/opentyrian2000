@@ -18,6 +18,14 @@ tyrian.sav
 /opentyrian.exe
 /SDL2.dll
 /SDL2_net.dll
+/libenet-7.dll
+
+# Relay server build output
+/tyrian-relay
+/tyrian-relay.exe
+
+# Network game desync reports
+desync-tick-*.txt
 
 # Windows runtime output
 /stderr.txt
@@ -36,6 +44,8 @@ tyrian.sav
 # Doxygen output
 /doc/doxygen/
 
-# Sync test output
+# Sync and network test output
 /tests/sync/out/
+/tests/net/out/
+/tests/net/results/
 *.otr.part

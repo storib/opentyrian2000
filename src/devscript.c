@@ -159,6 +159,18 @@ static void push_mouse_button(Uint32 type, Uint8 button)
 	SDL_PushEvent(&ev);
 }
 
+static void push_text(const char *text)
+{
+	SDL_Event ev;
+	memset(&ev, 0, sizeof(ev));
+
+	ev.type = SDL_TEXTINPUT;
+	ev.text.windowID = DEVSCRIPT_WINDOW_ID;
+	SDL_strlcpy(ev.text.text, text, sizeof(ev.text.text));
+
+	SDL_PushEvent(&ev);
+}
+
 /** The text after the command word, for arguments that may contain spaces. */
 static const char *rest_of_line(const char *line)
 {
@@ -233,6 +245,25 @@ static void run_line(const char *line, Uint32 now)
 			return;
 		}
 		push_mouse_button(command[5] == 'd' ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP, button);
+	}
+	else if (strcmp(command, "text") == 0)
+	{
+		const char *text = rest_of_line(line);
+		char buffer[SDL_TEXTINPUTEVENT_TEXT_SIZE] = "";
+
+		// "@PATH" types the first line of a file, written by whatever runs the test
+		if (text[0] == '@')
+		{
+			FILE *f = fopen(text + 1, "r");
+			if (f == NULL || fgets(buffer, sizeof(buffer), f) == NULL)
+				fprintf(stderr, "devscript: can't read text from '%s'\n", text + 1);
+			if (f != NULL)
+				fclose(f);
+			buffer[strcspn(buffer, "\r\n")] = '\0';
+			text = buffer;
+		}
+
+		push_text(text);
 	}
 	else if (strcmp(command, "shot") == 0)
 	{
@@ -315,8 +346,9 @@ bool devscript_allows_event(const SDL_Event *ev)
 	case SDL_MOUSEBUTTONDOWN:
 	case SDL_MOUSEBUTTONUP:
 		return ev->button.windowID == DEVSCRIPT_WINDOW_ID;
-	case SDL_MOUSEWHEEL:
 	case SDL_TEXTINPUT:
+		return ev->text.windowID == DEVSCRIPT_WINDOW_ID;
+	case SDL_MOUSEWHEEL:
 		return false;
 	default:
 		return true;

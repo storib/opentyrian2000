@@ -38,6 +38,13 @@ extern JE_boolean useLastBank;
 
 extern bool pause_pressed, ingamemenu_pressed;
 
+extern JE_boolean haltGame;
+extern JE_boolean moveOk;
+extern JE_boolean yourInGameMenuRequest;
+
+/** Reads this computer's input devices (inputDevice 0 means all of them) into `input`. */
+void read_local_input(PlayerInput *input, JE_byte inputDevice);
+
 /*void JE_textMenuWait(JE_word waittime, JE_boolean dogamma);*/
 
 void JE_drawTextWindow(const char *text);

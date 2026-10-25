@@ -1,0 +1,56 @@
+# Player 2 of the network test (run-local.ps1): joins with the room code that
+# run-local.ps1 writes to tests/net/out/code.txt, then plays until player 1
+# ends the game, and leaves the lobby.
+window 640 400
+wait 2000
+key Return
+wait 1500
+key Return
+wait 1500
+key Return
+wait 1500
+key Down
+key Down
+key Down
+key Down
+key Return
+wait 1500
+# >>> Join Internet Game with the code (run-local.ps1 -Mode lan picks Join LAN Game instead)
+key Down
+key Return
+wait 1500
+text @tests/net/out/code.txt
+key Return
+# <<<
+wait 3000
+shot tests/net/out/join-1-lobby.bmp
+wait 6000
+
+down Space
+down Right
+wait 2000
+up Right
+down Up
+wait 1200
+up Up
+shot tests/net/out/join-2-game.bmp
+down Left
+wait 3000
+up Left
+key Left_Ctrl 300
+down Down
+wait 1500
+up Down
+wait 2500
+shot tests/net/out/join-3-hold.bmp
+down Right
+wait 1500
+up Right
+up Space
+
+# player 1 ends the game for everyone about now
+wait 12000
+shot tests/net/out/join-4-lobby-after.bmp
+key Escape
+wait 2000
+quit

@@ -28,7 +28,7 @@
 #include "mainint.h"
 #include "mouse.h"
 #include "musmast.h"
-#include "network.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "nortvars.h"
 #include "params.h"
@@ -836,7 +836,7 @@ void JE_itemScreen(void)
 
 			   Also, I think all timing is handled in here. Somehow. */
 
-				NETWORK_KEEP_ALIVE();
+				net_poll();
 
 				mouseCursor = MOUSE_POINTER_NORMAL;
 
@@ -1625,49 +1625,6 @@ void JE_itemScreen(void)
 		}
 
 	} while (!(quit || gameLoaded || jumpSection));
-
-#ifdef WITH_NETWORK
-	if (!quit && isNetworkGame)
-	{
-		JE_barShade(VGAScreen, 3, 3, 316, 196);
-		JE_barShade(VGAScreen, 1, 1, 318, 198);
-		JE_dString(VGAScreen, 10, 160, "Waiting for other player.", SMALL_FONT_SHAPES);
-
-		network_prepare(PACKET_WAITING);
-		network_send(4);  // PACKET_WAITING
-
-		while (true)
-		{
-			service_SDL_events(false);
-			JE_showVGA();
-
-			if (packet_in[0] && SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_WAITING)
-			{
-				network_update();
-				break;
-			}
-
-			network_update();
-			network_check();
-
-			SDL_Delay(16);
-		}
-
-		network_state_reset();
-	}
-
-	if (isNetworkGame)
-	{
-		while (!network_is_sync())
-		{
-			service_SDL_events(false);
-			JE_showVGA();
-
-			network_check();
-			SDL_Delay(16);
-		}
-	}
-#endif
 
 	if (gameLoaded)
 		fade_black(10);
@@ -2598,16 +2555,6 @@ JE_boolean JE_quitRequest(void)
 
 	JE_playSampleNum(quit_selected ? S_SPRING : S_CLICK);
 
-#ifdef WITH_NETWORK
-	if (isNetworkGame && quit_selected)
-	{
-		network_prepare(PACKET_QUIT);
-		network_send(4);  // PACKET QUIT
-
-		network_tyrian_halt(0, true);
-	}
-#endif
-
 	return quit_selected;
 }
 
@@ -3107,10 +3054,6 @@ joystick_assign_done:
 		case 5:
 			if (JE_quitRequest())
 			{
-				if (isNetworkGame)
-				{
-					JE_tyrianHalt(0);
-				}
 				gameLoaded = true;
 				mainLevel = 0;
 			}

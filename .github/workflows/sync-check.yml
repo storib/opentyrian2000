@@ -40,18 +40,18 @@ jobs:
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-SDL2
-            mingw-w64-ucrt-x86_64-SDL2_net
+            mingw-w64-ucrt-x86_64-enet
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-net-dev
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libenet-dev
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install sdl2 sdl2_net pkg-config
+        run: brew install sdl2 enet pkg-config
 
       - name: Build
-        run: make -j4
+        run: make -j4 && make relay
 
       - name: Fetch Tyrian 2000 data (freeware release)
         run: |
@@ -77,10 +77,30 @@ jobs:
           done
           exit $status
 
+      # Two game instances play each other through a relay (tests/net/run-local.ps1).
+      - name: Copy DLLs for the network test (Windows)
+        if: runner.os == 'Windows'
+        run: cp /ucrt64/bin/SDL2.dll /ucrt64/bin/libenet-7.dll .
+
+      - name: Network test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $status = 0
+          foreach ($mode in 'internet', 'desync', 'leave', 'menu-leave') {
+            powershell -ExecutionPolicy Bypass -File tests/net/run-local.ps1 -Mode $mode
+            if ($LASTEXITCODE -ne 0) { $status = 1 }
+            New-Item -ItemType Directory -Force "tests/net/results/$mode" | Out-Null
+            Copy-Item tests/net/out/* "tests/net/results/$mode/"
+          }
+          exit $status
+
       - name: Upload screenshots and hash log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sync-check-${{ matrix.os }}
-          path: tests/sync/out/
+          path: |
+            tests/sync/out/
+            tests/net/results/
           if-no-files-found: ignore

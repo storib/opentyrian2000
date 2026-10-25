@@ -1,0 +1,32 @@
+# Player 2 for run-local.ps1 -Mode menu-leave: joins, plays a few seconds,
+# opens the in-game menu (which holds both players), then closes the game
+# with the menu still open.
+window 640 400
+wait 2000
+key Return
+wait 1500
+key Return
+wait 1500
+key Return
+wait 1500
+key Down
+key Down
+key Down
+key Down
+key Return
+wait 1500
+key Down
+key Return
+wait 1500
+text @tests/net/out/code.txt
+key Return
+wait 9000
+
+down Space
+down Right
+wait 3000
+up Right
+up Space
+key Escape
+wait 2000
+quit

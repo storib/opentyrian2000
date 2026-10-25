@@ -1,0 +1,67 @@
+# Player 1 of the network test (run-local.ps1): hosts an internet game through
+# the relay given with --relay, starts it once player 2 has joined, plays,
+# pauses everyone, then quits the game for everyone from the in-game menu.
+window 640 400
+wait 2000
+# past the intro to the title screen, then Start New Game > Network Game
+key Return
+wait 1500
+key Return
+wait 1500
+key Return
+wait 1500
+key Down
+key Down
+key Down
+key Down
+key Return
+wait 1500
+# >>> Host Internet Game (run-local.ps1 -Mode lan picks Host LAN Game instead)
+key Return
+# <<<
+# run-local.ps1 passes the room code on to player 2
+wait 7000
+shot tests/net/out/host-1-lobby.bmp
+key Return
+wait 5000
+
+down Space
+down Left
+wait 1500
+up Left
+down Up
+wait 1000
+up Up
+down Right
+wait 2500
+up Right
+shot tests/net/out/host-2-game.bmp
+
+# pause for everyone, then any key goes on
+key P
+wait 1500
+shot tests/net/out/host-3-paused.bmp
+key Return
+wait 1000
+
+down Down
+wait 800
+up Down
+down Left
+wait 2000
+up Left
+up Space
+wait 1500
+
+# the in-game menu holds everyone; Up wraps round to Quit
+key Escape
+wait 1500
+shot tests/net/out/host-4-menu.bmp
+key Up
+key Return
+wait 4000
+shot tests/net/out/host-5-lobby-after.bmp
+
+key Escape
+wait 2000
+quit

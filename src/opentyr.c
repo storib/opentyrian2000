@@ -33,7 +33,9 @@
 #include "mainint.h"
 #include "mouse.h"
 #include "mtrand.h"
-#include "network.h"
+#include "musmast.h"
+#include "netmenu.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "nortvars.h"
 #include "opentyrian_version.h"
@@ -829,21 +831,8 @@ int main(int argc, char *argv[])
 
 	JE_loadExtraShapes();  /*Editship*/
 
-	if (isNetworkGame)
-	{
-#ifdef WITH_NETWORK
-		if (network_init())
-		{
-			network_tyrian_halt(3, false);
-		}
-#else
-		fprintf(stderr, "OpenTyrian was compiled without networking support.");
-		JE_tyrianHalt(5);
-#endif
-	}
-
 #ifdef NDEBUG
-	if (!isNetworkGame && quick_start_players == 0)
+	if (quick_start_players == 0)
 		intro_logos();
 #endif
 
@@ -858,14 +847,15 @@ int main(int argc, char *argv[])
 		gameLoaded = false;
 		jumpSection = false;
 
-#ifdef WITH_NETWORK
-		if (isNetworkGame)
+		if (net_status() == NET_IN_LOBBY)
 		{
-			networkStartScreen();
+			// back from a network game: to its lobby, or the title screen if the player leaves
+			play_song(SONG_TITLE);
+			if (!netmenu_lobby())
+				continue;
+			net_begin_game();
 		}
-		else
-#endif
-		if (quick_start_players != 0)
+		else if (quick_start_players != 0)
 		{
 			quickStartArcade();
 			quick_start_players = 0;  // back to the title screen afterwards
@@ -889,7 +879,15 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
+			const bool network_game = isNetworkGame;
+
 			JE_main();
+
+			net_end_game();
+
+			// the connection went during the game: say why, as there's no lobby to say it in
+			if (network_game && net_status() == NET_OFFLINE)
+				netmenu_message(net_end_message()[0] != '\0' ? net_end_message() : net_error());
 
 			if (trentWin)
 			{

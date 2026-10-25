@@ -25,7 +25,8 @@
 #include "joystick.h"
 #include "keyboard.h"
 #include "mouse.h"
-#include "network.h"
+#include "netmenu.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "opentyr.h"
 #include "palette.h"
@@ -88,9 +89,8 @@ bool gameplaySelect(void)
 			const int y = yMenuItems + dyMenuItems * i;
 
 			const bool selected = i == selectedIndex;
-			const bool disabled = i == MENU_ITEM_NETWORK;
 
-			draw_font_hv_shadow(VGAScreen, x, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+			draw_font_hv_shadow(VGAScreen, x, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
 		}
 
 		if (restart)
@@ -227,7 +227,15 @@ bool gameplaySelect(void)
 			}
 			case MENU_ITEM_NETWORK:
 			{
-				JE_playSampleNum(S_SPRING);
+				JE_playSampleNum(S_SELECT);
+
+				fade_black(10);
+
+				// true once the room's host has started a game (newGame() sets it up)
+				if (netmenu_run())
+					return true;
+
+				restart = true;
 				break;
 			}
 			default:
@@ -315,7 +323,7 @@ bool episodeSelect(void)
 			push_joysticks_as_keyboard();
 			service_SDL_events(false);
 
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
 		} while (!(newkey || newmouse || mouseMoved));
@@ -503,7 +511,7 @@ bool difficultySelect(void)
 			push_joysticks_as_keyboard();
 			service_SDL_events(false);
 
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
 		} while (!(newkey || newmouse || mouseMoved));
@@ -745,7 +753,7 @@ bool timedBattleSelect(void)
 			push_joysticks_as_keyboard();
 			service_SDL_events(false);
 
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
 		} while (!(newkey || newmouse || mouseMoved));

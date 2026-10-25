@@ -34,7 +34,7 @@
 #include "mainint.h"
 #include "mouse.h"
 #include "mtrand.h"
-#include "network.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "nortvars.h"
 #include "opentyr.h"
@@ -645,6 +645,15 @@ start_level:
 
 	mouseSetRelative(false);
 
+	// someone quit, left or desynced: back to the lobby (net_end_message() says why)
+	if (isNetworkGame && net_game_ended())
+	{
+		fade_song();
+		fade_black(10);
+		video_hud_split = false;
+		return;
+	}
+
 	if (galagaMode)
 		twoPlayerMode = false;
 
@@ -706,6 +715,14 @@ start_level:
 
 			if (timedBattleMode)
 			{
+				mainLevel = 0;
+				return;
+			}
+
+			// a network game ends at a game over; the lobby can start another
+			if (isNetworkGame)
+			{
+				net_set_end_message(playerEndLevel ? "" : "Game over.");
 				mainLevel = 0;
 				return;
 			}
@@ -928,14 +945,6 @@ start_level_first:
 
 	newkey = false;
 
-#ifdef WITH_NETWORK
-	if (isNetworkGame)
-	{
-		JE_clearSpecialRequests();
-		mt_srand(32402394);
-	}
-#endif
-
 	sync_level_start(mainLevel);
 
 	initialize_starfield();
@@ -945,7 +954,7 @@ start_level_first:
 	set_volume(tyrMusicVolume, fxVolume);
 
 	/*Save backup game*/
-	if (!play_demo && !doNotSaveBackup && !timedBattleMode)
+	if (!play_demo && !doNotSaveBackup && !timedBattleMode && !isNetworkGame)
 	{
 		temp = twoPlayerMode ? 22 : 11;
 		JE_saveGame(temp, "LAST LEVEL    ");
@@ -1103,17 +1112,12 @@ level_loop:
 
 	sync_tick_begin();
 
+	// a network game waits here for everyone's input for this tick
+	net_tick_begin();
+
 	//tempScreenSeg = game_screen; /* side-effect of game_screen */
 
-	if (isNetworkGame)
-	{
-		smoothies[9-1] = false;
-		smoothies[6-1] = false;
-	}
-	else
-	{
-		starShowVGASpecialCode = smoothies[9-1] + (smoothies[6-1] << 1);
-	}
+	starShowVGASpecialCode = smoothies[9-1] + (smoothies[6-1] << 1);
 
 	/*Background Wrapping*/
 	if (mapYPos <= BKwrap1)
@@ -1276,9 +1280,6 @@ level_loop:
 	/*---------------------------EVENTS-------------------------*/
 	while (eventRec[eventLoc-1].eventtime <= curLoc && eventLoc <= maxEvent)
 		JE_eventSystem();
-
-	if (isNetworkGame && reallyEndLevel)
-		goto start_level;
 
 	/* SMOOTHIES! */
 	JE_checkSmoothies();
@@ -2244,30 +2245,25 @@ draw_player_shot_loop_end:
 				goto level_loop;
 		}
 
-		// pausing doesn't change the game, so a replay just keeps going
-		if ((pause_pressed || !windowHasFocus) && !sync_is_replaying())
+		// In a network game, pause and the menu are part of the next tick's input instead, so
+		// every computer opens them at the same tick (net_tick_begin), and losing focus doesn't
+		// pause: that would only stall everyone else.
+		if (!isNetworkGame)
 		{
+			// pausing doesn't change the game, so a replay just keeps going
+			if ((pause_pressed || !windowHasFocus) && !sync_is_replaying())
+			{
+				pause_pressed = false;
+				JE_pauseGame();
+			}
 			pause_pressed = false;
 
-			if (isNetworkGame)
-				pauseRequest = true;
-			else
-				JE_pauseGame();
-		}
-		pause_pressed = false;
+			// When recording, whether the menu opened and whether it quit the level are recorded;
+			// a replay applies those outcomes without showing the menu.
+			const bool menu_opened = sync_event(SYNC_EVENT_MENU_OPENED, ingamemenu_pressed);
+			ingamemenu_pressed = false;
 
-		// When recording, whether the menu opened and whether it quit the level are recorded;
-		// a replay applies those outcomes without showing the menu.
-		const bool menu_opened = sync_event(SYNC_EVENT_MENU_OPENED, ingamemenu_pressed);
-		ingamemenu_pressed = false;
-
-		if (menu_opened)
-		{
-			if (isNetworkGame)
-			{
-				inGameMenuRequest = true;
-			}
-			else
+			if (menu_opened)
 			{
 				if (!sync_is_replaying())
 				{
@@ -2284,77 +2280,6 @@ draw_player_shot_loop_end:
 			}
 		}
 	}
-
-	/*Network Update*/
-#ifdef WITH_NETWORK
-	if (isNetworkGame)
-	{
-		if (!reallyEndLevel)
-		{
-			Uint16 requests = (pauseRequest == true) |
-			                  (inGameMenuRequest == true) << 1 |
-			                  (skipLevelRequest == true) << 2 |
-			                  (nortShipRequest == true) << 3;
-			SDLNet_Write16(requests,        &packet_state_out[0]->data[14]);
-
-			SDLNet_Write16(difficultyLevel, &packet_state_out[0]->data[16]);
-			SDLNet_Write16(player[0].x,     &packet_state_out[0]->data[18]);
-			SDLNet_Write16(player[1].x,     &packet_state_out[0]->data[20]);
-			SDLNet_Write16(player[0].y,     &packet_state_out[0]->data[22]);
-			SDLNet_Write16(player[1].y,     &packet_state_out[0]->data[24]);
-			SDLNet_Write16(curLoc,          &packet_state_out[0]->data[26]);
-
-			network_state_send();
-
-			if (network_state_update())
-			{
-				assert(SDLNet_Read16(&packet_state_in[0]->data[26]) == SDLNet_Read16(&packet_state_out[network_delay]->data[26]));
-
-				requests = SDLNet_Read16(&packet_state_in[0]->data[14]) ^ SDLNet_Read16(&packet_state_out[network_delay]->data[14]);
-				if (requests & 1)
-				{
-					JE_pauseGame();
-				}
-				if (requests & 2)
-				{
-					yourInGameMenuRequest = SDLNet_Read16(&packet_state_out[network_delay]->data[14]) & 2;
-					JE_doInGameSetup();
-					yourInGameMenuRequest = false;
-					if (haltGame)
-						reallyEndLevel = true;
-				}
-				if (requests & 4)
-				{
-					levelTimer = true;
-					levelTimerCountdown = 0;
-					endLevel = true;
-					levelEnd = 40;
-				}
-				if (requests & 8) // nortship
-				{
-					player[0].items.ship = 12;                     // Nort Ship
-					player[0].items.special = 13;                  // Astral Zone
-					player[0].items.weapon[FRONT_WEAPON].id = 36;  // NortShip Super Pulse
-					player[0].items.weapon[REAR_WEAPON].id = 37;   // NortShip Spreader
-					shipGr = 1;
-				}
-
-				for (int i = 0; i < 2; i++)
-				{
-					if (SDLNet_Read16(&packet_state_in[0]->data[18 + i * 2]) != SDLNet_Read16(&packet_state_out[network_delay]->data[18 + i * 2]) || SDLNet_Read16(&packet_state_in[0]->data[20 + i * 2]) != SDLNet_Read16(&packet_state_out[network_delay]->data[20 + i * 2]))
-					{
-						char temp[64];
-						sprintf(temp, "Player %d is unsynchronized!", i + 1);
-
-						JE_textShade(game_screen, 40, 110 + i * 10, temp, 9, 2, FULL_SHADE);
-					}
-				}
-			}
-		}
-
-		JE_clearSpecialRequests();
-	}
-#endif
 
 	/** Test **/
 	JE_drawSP();
@@ -2423,6 +2348,7 @@ draw_player_shot_loop_end:
 	/*Other Network Functions*/
 	JE_handleChat();
 
+	net_tick_end();
 	sync_tick_end();
 
 	if (reallyEndLevel)
@@ -3237,86 +3163,6 @@ new_game:
 	/* End of find loop for LEVEL??.DAT */
 }
 
-#ifdef WITH_NETWORK
-void networkStartScreen(void)
-{
-	JE_loadPic(VGAScreen, 2, false);
-	memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
-	JE_dString(VGAScreen, JE_fontCenter("Waiting for other player.", SMALL_FONT_SHAPES), 140, "Waiting for other player.", SMALL_FONT_SHAPES);
-	JE_showVGA();
-	fade_palette(colors, 10, 0, 255);
-
-	network_connect();
-
-	twoPlayerMode = true;
-	if (thisPlayerNum == 1)
-	{
-		fade_black(10);
-
-		if (episodeSelect() && difficultySelect())
-		{
-			initialDifficulty = difficultyLevel;
-
-			difficultyLevel++;  /*Make it one step harder for 2-player mode!*/
-
-			network_prepare(PACKET_DETAILS);
-			SDLNet_Write16(episodeNum, &packet_out_temp->data[4]);
-			SDLNet_Write16(difficultyLevel, &packet_out_temp->data[6]);
-			network_send(8);  // PACKET_DETAILS
-		}
-		else
-		{
-			network_prepare(PACKET_QUIT);
-			network_send(4);  // PACKET QUIT
-
-			network_tyrian_halt(0, true);
-		}
-	}
-	else
-	{
-		memcpy(VGAScreen->pixels, VGAScreen2->pixels, VGAScreen->pitch * VGAScreen->h);
-		JE_dString(VGAScreen, JE_fontCenter(networkText[4 - 1], SMALL_FONT_SHAPES), 140, networkText[4 - 1], SMALL_FONT_SHAPES);
-		JE_showVGA();
-
-		// until opponent sends details packet
-		while (true)
-		{
-			service_SDL_events(false);
-			JE_showVGA();
-
-			if (packet_in[0] && SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_DETAILS)
-				break;
-
-			network_update();
-			network_check();
-
-			SDL_Delay(16);
-		}
-
-		JE_initEpisode(SDLNet_Read16(&packet_in[0]->data[4]));
-		difficultyLevel = SDLNet_Read16(&packet_in[0]->data[6]);
-		initialDifficulty = difficultyLevel - 1;
-		fade_black(10);
-
-		network_update();
-	}
-
-	for (uint i = 0; i < COUNTOF(player); ++i)
-		player[i].cash = 0;
-
-	player[0].items.ship = 11;  // Silver Ship
-
-	while (!network_is_sync())
-	{
-		service_SDL_events(false);
-		JE_showVGA();
-
-		network_check();
-		SDL_Delay(16);
-	}
-}
-#endif /* WITH_NETWORK */
-
 bool titleScreen(void)
 {
 	enum MenuItemIndex
@@ -3665,6 +3511,12 @@ bool newGame(void)
 {
 	if (gameplaySelect())
 	{
+		if (net_start_received())
+		{
+			net_begin_game();
+			return gameLoaded;
+		}
+
 		if (timedBattleMode)
 		{
 			onePlayerAction = true;
@@ -3942,7 +3794,7 @@ void JE_displayText(void)
 
 		setDelay(1);
 
-		NETWORK_KEEP_ALIVE();
+		net_poll();
 
 		wait_delay();
 

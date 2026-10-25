@@ -27,43 +27,16 @@ Disable joystick/gamepad input.
 .BI \-t "\fR,\fP " "\-\^\-data " "directory"
 Set alternative Tyrian data directory.
 .TP
-.BI \-n "\fR,\fP " "\-\^\-net " "host\fR[:\fPport\fR]\fP"
-Start a networked game; 
-.I
-host 
-is the IP address of your opponent. Use this option together with
-.B
-\-\^\-net\-player\-name
-and
-.B
-\-\^\-net\-player\-number
-to join game.
-
-OpenTyrian2000 uses UDP port
-.B
-1333
-for multiplayer, but in most cases players will not need to open any ports
-because OpenTyrian2000 makes use of UDP hole punching.
-
+.BI "\-\^\-relay " "host\fR[:\fPport\fR]\fP"
+Use this relay server for internet games, for this run only. Network games
+are started from the Network Game menu; internet games use UDP port
+.BR 21900 .
 .TP
-.BI "\-\^\-net\-player\-name " "name"
+.BI "\-\^\-net\-name " "name"
 Set
 .I
 name
-as your alias for multiplayer game.
-.TP
-.BI "\-\^\-net\-player\-number " "number"
-Select ship;
-.I
-number
-is either 1 or 2 depending on which ship you intend to pilot.
-
-.TP
-.BI \-p "\fR,\fP " "\-\^\-net\-port " "port"
-Set local port to bind.
-.TP
-.BI \-d "\fR,\fP " "\-\^\-net\-delay " "frames"
-Set lag-compensation delay.
+as your name in network games, for this run only.
 .TP
 .BR \-x "\fR,\fP " "\-\^\-no\-xmas"
 Disable Christmas mode.

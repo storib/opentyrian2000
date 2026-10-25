@@ -36,7 +36,7 @@
 #include "menus.h"
 #include "mouse.h"
 #include "mtrand.h"
-#include "network.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "nortvars.h"
 #include "opentyr.h"
@@ -71,6 +71,10 @@ JE_boolean jumpSection;
 JE_boolean useLastBank; /* See if I want to use the last 16 colors for DisplayText */
 
 bool pause_pressed = false, ingamemenu_pressed = false;
+
+JE_boolean haltGame = false;
+JE_boolean moveOk;
+JE_boolean yourInGameMenuRequest;
 
 /* Draws a message at the bottom text window on the playing screen */
 void JE_drawTextWindow(const char *text)
@@ -130,7 +134,7 @@ void JE_outCharGlow(JE_word x, JE_word y, const char *s)
 			{
 				setDelay(frameCountMax);
 
-				NETWORK_KEEP_ALIVE();
+				net_poll();
 
 				int sprite_id = -1;
 
@@ -992,6 +996,11 @@ void JE_nextEpisode(void)
 			JE_playCredits();
 		}
 
+		// The credits draw random numbers for as long as each player watches them, so a
+		// network game reseeds here; otherwise each computer would roll differently.
+		if (isNetworkGame)
+			mt_srand(32402394);
+
 		// randomly give player the SuperCarrot
 		if ((mt_rand() % 6) == 0)
 		{
@@ -1031,7 +1040,7 @@ void JE_nextEpisode(void)
 	{
 		do
 		{
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			SDL_Delay(16);
 		} while (!JE_anyButton());
@@ -1393,30 +1402,6 @@ void JE_doInGameSetup(void)
 
 	haltGame = false;
 
-#ifdef WITH_NETWORK
-	if (isNetworkGame)
-	{
-		network_prepare(PACKET_GAME_MENU);
-		network_send(4);  // PACKET_GAME_MENU
-
-		while (true)
-		{
-			service_SDL_events(false);
-
-			if (packet_in[0] && SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_GAME_MENU)
-			{
-				network_update();
-				break;
-			}
-
-			network_update();
-			network_check();
-
-			SDL_Delay(16);
-		}
-	}
-#endif
-
 	if (yourInGameMenuRequest)
 	{
 		if (JE_inGameSetup())
@@ -1427,87 +1412,7 @@ void JE_doInGameSetup(void)
 		quitRequested = false;
 
 		keysactive[SDL_SCANCODE_ESCAPE] = false;
-
-#ifdef WITH_NETWORK
-		if (isNetworkGame)
-		{
-			if (!playerEndLevel)
-			{
-				network_prepare(PACKET_WAITING);
-				network_send(4);  // PACKET_WAITING
-			}
-			else
-			{
-				network_prepare(PACKET_GAME_QUIT);
-				network_send(4);  // PACKET_GAMEQUIT
-			}
-		}
-#endif
 	}
-
-#ifdef WITH_NETWORK
-	if (isNetworkGame)
-	{
-		SDL_Surface *temp_surface = VGAScreen;
-		VGAScreen = VGAScreenSeg; /* side-effect of game_screen */
-
-		if (!yourInGameMenuRequest)
-		{
-			JE_barShade(VGAScreen, 3, 60, 257, 80); /*Help Box*/
-			JE_barShade(VGAScreen, 5, 62, 255, 78);
-			JE_dString(VGAScreen, 10, 65, "Other player in options menu.", SMALL_FONT_SHAPES);
-			JE_showVGA();
-
-			while (true)
-			{
-				service_SDL_events(false);
-				JE_showVGA();
-
-				if (packet_in[0])
-				{
-					if (SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_WAITING)
-					{
-						network_check();
-						break;
-					}
-					else if (SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_GAME_QUIT)
-					{
-						reallyEndLevel = true;
-						playerEndLevel = true;
-
-						network_check();
-						break;
-					}
-				}
-
-				network_update();
-				network_check();
-
-				SDL_Delay(16);
-			}
-		}
-		else
-		{
-			/*
-			JE_barShade(3, 160, 257, 180); /-*Help Box*-/
-			JE_barShade(5, 162, 255, 178);
-			tempScreenSeg = VGAScreen;
-			JE_dString(VGAScreen, 10, 165, "Waiting for other player.", SMALL_FONT_SHAPES);
-			JE_showVGA();
-			*/
-		}
-
-		while (!network_is_sync())
-		{
-			service_SDL_events(false);
-
-			network_check();
-			SDL_Delay(16);
-		}
-
-		VGAScreen = temp_surface; /* side-effect of game_screen */
-	}
-#endif
 
 	yourInGameMenuRequest = false;
 
@@ -1631,7 +1536,7 @@ JE_boolean JE_inGameSetup(void)
 			push_joysticks_as_keyboard();
 			service_SDL_events(false);
 
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
 		} while (!(newkey || newmouse || mouseMoved));
@@ -1772,7 +1677,7 @@ JE_boolean JE_inGameSetup(void)
 			}
 			case SDL_SCANCODE_W:
 			{
-				if (selectedIndex == MENU_ITEM_DETAIL_LEVEL)
+				if (selectedIndex == MENU_ITEM_DETAIL_LEVEL && !isNetworkGame)
 				{
 					processorType = 6;
 					JE_initProcessorType();
@@ -1782,6 +1687,15 @@ JE_boolean JE_inGameSetup(void)
 			default:
 				break;
 			}
+		}
+
+		// in a network game every computer uses the host's detail level and speed
+		if (isNetworkGame && (leftAction || rightAction) &&
+		    (selectedIndex == MENU_ITEM_DETAIL_LEVEL || selectedIndex == MENU_ITEM_GAME_SPEED))
+		{
+			JE_playSampleNum(S_CLINK);
+			leftAction = false;
+			rightAction = false;
 		}
 
 		if (action)
@@ -1815,13 +1729,6 @@ JE_boolean JE_inGameSetup(void)
 
 				if (constantPlay)
 					JE_tyrianHalt(0);
-
-				if (isNetworkGame)
-				{
-					/*Tell other computer to exit*/
-					haltGame = true;
-					playerEndLevel = true;
-				}
 
 				result = true;
 				done = true;
@@ -2012,7 +1919,7 @@ void JE_inGameHelp(void)
 		push_joysticks_as_keyboard();
 		service_SDL_events(false);
 
-		NETWORK_KEEP_ALIVE();
+		net_poll();
 	} while (!(newkey || newmouse));
 
 	textErase = 1;
@@ -2672,7 +2579,7 @@ void JE_playCredits(void)
 			play_song(9);
 		}
 
-		NETWORK_KEEP_ALIVE();
+		net_poll();
 
 		JE_showVGA();
 
@@ -2830,7 +2737,7 @@ void JE_endLevelAni(void)
 
 			for (temp = 1; temp <= cubeMax; temp++)
 			{
-				NETWORK_KEEP_ALIVE();
+				net_poll();
 
 				JE_playSampleNum(S_ITEM);
 				x = 20 + 30 * temp;
@@ -2891,7 +2798,7 @@ void JE_endLevelAni(void)
 		{
 			setDelay(1);
 
-			NETWORK_KEEP_ALIVE();
+			net_poll();
 
 			wait_delay();
 		} while (!(JE_anyButton() || (frameCountMax == 0 && temp == 1)));
@@ -3252,33 +3159,19 @@ void JE_mainKeyboardInput(void)
 	/* { In-Game Help } */
 	if (keysactive[SDL_SCANCODE_F1])
 	{
-		if (isNetworkGame)
-		{
-			helpRequest = true;
-		}
-		else
-		{
-			JE_inGameHelp();
-			skipStarShowVGA = true;
-		}
+		JE_inGameHelp();
+		skipStarShowVGA = true;
 	}
 
 	/* {!Activate Nort Ship!} */
 	if (keysactive[SDL_SCANCODE_F2] && keysactive[SDL_SCANCODE_F4] && keysactive[SDL_SCANCODE_F6] && keysactive[SDL_SCANCODE_F7] &&
 	    keysactive[SDL_SCANCODE_F9] && keysactive[SDL_SCANCODE_BACKSLASH] && keysactive[SDL_SCANCODE_SLASH])
 	{
-		if (isNetworkGame)
-		{
-			nortShipRequest = true;
-		}
-		else
-		{
-			player[0].items.ship = 12;                     // Nort Ship
-			player[0].items.special = 13;                  // Astral Zone
-			player[0].items.weapon[FRONT_WEAPON].id = 36;  // NortShip Super Pulse
-			player[0].items.weapon[REAR_WEAPON].id = 37;   // NortShip Spreader
-			shipGr = 1;
-		}
+		player[0].items.ship = 12;                     // Nort Ship
+		player[0].items.special = 13;                  // Astral Zone
+		player[0].items.weapon[FRONT_WEAPON].id = 36;  // NortShip Super Pulse
+		player[0].items.weapon[REAR_WEAPON].id = 37;   // NortShip Spreader
+		shipGr = 1;
 	}
 
 	/* {Cheating} */
@@ -3330,17 +3223,10 @@ void JE_mainKeyboardInput(void)
 	if (keysactive[SDL_SCANCODE_F2] && keysactive[SDL_SCANCODE_F6] && (keysactive[SDL_SCANCODE_F7] || keysactive[SDL_SCANCODE_F8]) && !keysactive[SDL_SCANCODE_F9] &&
 	    !superTyrian && superArcadeMode == SA_NONE)
 	{
-		if (isNetworkGame)
-		{
-			skipLevelRequest = true;
-		}
-		else
-		{
-			levelTimer = true;
-			levelTimerCountdown = 0;
-			endLevel = true;
-			levelEnd = 40;
-		}
+		levelTimer = true;
+		levelTimerCountdown = 0;
+		endLevel = true;
+		levelEnd = 40;
 	}
 
 	/* pause game */
@@ -3419,30 +3305,6 @@ void JE_pauseGame(void)
 
 	set_volume(tyrMusicVolume / 2, fxVolume);
 
-#ifdef WITH_NETWORK
-	if (isNetworkGame)
-	{
-		network_prepare(PACKET_GAME_PAUSE);
-		network_send(4);  // PACKET_GAME_PAUSE
-
-		while (true)
-		{
-			service_SDL_events(false);
-
-			if (packet_in[0] && SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_GAME_PAUSE)
-			{
-				network_update();
-				break;
-			}
-
-			network_update();
-			network_check();
-
-			SDL_Delay(16);
-		}
-	}
-#endif
-
 	wait_noinput(false, false, true); // TODO: should up the joystick repeat temporarily instead
 
 	do
@@ -3455,45 +3317,11 @@ void JE_pauseGame(void)
 		if ((newkey && lastkey_scan != SDL_SCANCODE_LCTRL && lastkey_scan != SDL_SCANCODE_RCTRL && lastkey_scan != SDL_SCANCODE_LALT && lastkey_scan != SDL_SCANCODE_RALT) ||
 		    JE_mousePosition(&mouseX, &mouseY) > 0)
 		{
-#ifdef WITH_NETWORK
-			if (isNetworkGame)
-			{
-				network_prepare(PACKET_WAITING);
-				network_send(4);  // PACKET_WAITING
-			}
-#endif
 			done = true;
 		}
 
-#ifdef WITH_NETWORK
-		if (isNetworkGame)
-		{
-			network_check();
-
-			if (packet_in[0] && SDLNet_Read16(&packet_in[0]->data[0]) == PACKET_WAITING)
-			{
-				network_check();
-
-				done = true;
-			}
-		}
-#endif
-
 		wait_delay();
 	} while (!done);
-
-#ifdef WITH_NETWORK
-	if (isNetworkGame)
-	{
-		while (!network_is_sync())
-		{
-			service_SDL_events(false);
-
-			network_check();
-			SDL_Delay(16);
-		}
-	}
-#endif
 
 	set_volume(tyrMusicVolume, fxVolume);
 
@@ -3505,18 +3333,30 @@ void JE_pauseGame(void)
 }
 
 /**
- * Reads one player's input for this tick: from a replay if one is playing, otherwise from
- * the demo or the player's input devices (and records it if recording).
+ * Reads one player's input for this tick: from a replay if one is playing, from the relay's
+ * bundle in a network game, otherwise from the demo or the player's input devices (and
+ * records it if recording).
  */
 static void read_player_input(PlayerInput *input, JE_byte playerNum_, JE_byte inputDevice)
 {
-	memset(input, 0, sizeof(*input));
-
 	if (sync_is_replaying())
 	{
+		memset(input, 0, sizeof(*input));
 		sync_replay_input(playerNum_, input);
 		return;
 	}
+
+	if (isNetworkGame)
+		net_get_input(playerNum_, input);
+	else
+		read_local_input(input, inputDevice);
+
+	sync_record_input(playerNum_, input);
+}
+
+void read_local_input(PlayerInput *input, JE_byte inputDevice)
+{
+	memset(input, 0, sizeof(*input));
 
 	bool buttons[4] = { false, false, false, false };
 
@@ -3642,8 +3482,6 @@ static void read_player_input(PlayerInput *input, JE_byte playerNum_, JE_byte in
 	// bit i of the packed buttons is button[i]
 	for (int i = 0; i < 4; i++)
 		input->buttons |= buttons[i] << i;
-
-	sync_record_input(playerNum_, input);
 }
 
 /** Moves a ship by one tick of input; everything here is simulation and must be deterministic. */
@@ -3714,20 +3552,7 @@ void JE_playerMovement(Player *this_player,
 			this_player->weapon_mode = 1;
 	}
 
-#ifdef WITH_NETWORK
-	if (isNetworkGame && thisPlayerNum == playerNum_)
-	{
-		network_state_prepare();
-		memset(&packet_state_out[0]->data[4], 0, 10);
-	}
-#endif
-
 redo:
-
-	if (isNetworkGame)
-	{
-		inputDevice = 0;
-	}
 
 	accelXC = 0;
 	accelYC = 0;
@@ -3855,93 +3680,24 @@ redo:
 
 		/* --- Movement Routine Beginning --- */
 
-		if (!isNetworkGame || playerNum_ == thisPlayerNum)
+		if (endLevel)
 		{
-			if (endLevel)
-			{
-				this_player->y -= 2;
-			}
-			else
-			{
-				PlayerInput input;
-				read_player_input(&input, playerNum_, inputDevice);
-				apply_player_input(this_player, &input, mouseX_, mouseY_, &accelXC, &accelYC);
+			this_player->y -= 2;
+		}
+		else
+		{
+			PlayerInput input;
+			read_player_input(&input, playerNum_, inputDevice);
+			apply_player_input(this_player, &input, mouseX_, mouseY_, &accelXC, &accelYC);
 
-				link_gun_analog = input.link_gun_analog;
-				link_gun_angle = input.link_gun_angle;
+			link_gun_analog = input.link_gun_analog;
+			link_gun_angle = input.link_gun_angle;
 
-			}   /*endLevel*/
-
-#ifdef WITH_NETWORK
-			if (isNetworkGame && playerNum_ == thisPlayerNum)
-			{
-				Uint16 buttons = 0;
-				for (int i = 4 - 1; i >= 0; i--)
-				{
-					buttons <<= 1;
-					buttons |= button[i];
-				}
-
-				SDLNet_Write16(this_player->x - *mouseX_, &packet_state_out[0]->data[4]);
-				SDLNet_Write16(this_player->y - *mouseY_, &packet_state_out[0]->data[6]);
-				SDLNet_Write16(accelXC,                   &packet_state_out[0]->data[8]);
-				SDLNet_Write16(accelYC,                   &packet_state_out[0]->data[10]);
-				SDLNet_Write16(buttons,                   &packet_state_out[0]->data[12]);
-
-				this_player->x = *mouseX_;
-				this_player->y = *mouseY_;
-
-				button[0] = false;
-				button[1] = false;
-				button[2] = false;
-				button[3] = false;
-
-				accelXC = 0;
-				accelYC = 0;
-			}
-#endif
-		}  /*isNetworkGame*/
+		}   /*endLevel*/
 
 		/* --- Movement Routine Ending --- */
 
 		moveOk = true;
-
-#ifdef WITH_NETWORK
-		if (isNetworkGame && !network_state_is_reset())
-		{
-			if (playerNum_ != thisPlayerNum)
-			{
-				if (thisPlayerNum == 2)
-					difficultyLevel = SDLNet_Read16(&packet_state_in[0]->data[16]);
-
-				Uint16 buttons = SDLNet_Read16(&packet_state_in[0]->data[12]);
-				for (int i = 0; i < 4; i++)
-				{
-					button[i] = buttons & 1;
-					buttons >>= 1;
-				}
-
-				this_player->x += (Sint16)SDLNet_Read16(&packet_state_in[0]->data[4]);
-				this_player->y += (Sint16)SDLNet_Read16(&packet_state_in[0]->data[6]);
-				accelXC = (Sint16)SDLNet_Read16(&packet_state_in[0]->data[8]);
-				accelYC = (Sint16)SDLNet_Read16(&packet_state_in[0]->data[10]);
-			}
-			else
-			{
-				Uint16 buttons = SDLNet_Read16(&packet_state_out[network_delay]->data[12]);
-				for (int i = 0; i < 4; i++)
-				{
-					button[i] = buttons & 1;
-					buttons >>= 1;
-				}
-
-				this_player->x += (Sint16)SDLNet_Read16(&packet_state_out[network_delay]->data[4]);
-				this_player->y += (Sint16)SDLNet_Read16(&packet_state_out[network_delay]->data[6]);
-				accelXC = (Sint16)SDLNet_Read16(&packet_state_out[network_delay]->data[8]);
-				accelYC = (Sint16)SDLNet_Read16(&packet_state_out[network_delay]->data[10]);
-			}
-		}
-#endif
 
 		/*Street-Fighter codes*/
 		JE_SFCodes(playerNum_, this_player->x, this_player->y, *mouseX_, *mouseY_);
@@ -4173,16 +3929,8 @@ redo:
 			constantLastX = -constantLastX;
 		}
 
-		if (isNetworkGame && playerNum_ == 1)
-		{
-			if (this_player->y > 154)
-				this_player->y = 154;
-		}
-		else
-		{
-			if (this_player->y > 160)
-				this_player->y = 160;
-		}
+		if (this_player->y > 160)
+			this_player->y = 160;
 
 		if (this_player->y < 10)
 			this_player->y = 10;
@@ -4776,10 +4524,8 @@ void JE_mainGamePlayerFunctions(void)
 
 const char *JE_getName(JE_byte pnum)
 {
-	if (pnum == thisPlayerNum && network_player_name[0] != '\0')
-		return network_player_name;
-	else if (network_opponent_name[0] != '\0')
-		return network_opponent_name;
+	if (isNetworkGame && net_player_name_of(pnum)[0] != '\0')
+		return net_player_name_of(pnum);
 
 	return miscText[47 + pnum];
 }

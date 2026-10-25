@@ -1,0 +1,42 @@
+# Player 1 for run-local.ps1 -Mode desync and -Mode leave: hosts, starts once
+# player 2 has joined, and plays without pausing; the game is expected to end
+# by itself (a desync, or player 2 leaving). Then leaves the lobby.
+window 640 400
+wait 2000
+key Return
+wait 1500
+key Return
+wait 1500
+key Return
+wait 1500
+key Down
+key Down
+key Down
+key Down
+key Return
+wait 1500
+key Return
+wait 7000
+key Return
+wait 4000
+
+down Space
+down Left
+wait 2000
+up Left
+down Up
+wait 1500
+up Up
+down Right
+wait 3000
+up Right
+down Down
+wait 1500
+up Down
+up Space
+wait 12000
+shot tests/net/out/host-play-lobby-after.bmp
+
+key Escape
+wait 2000
+quit

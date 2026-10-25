@@ -23,7 +23,7 @@
 #include "file.h"
 #include "joystick.h"
 #include "loudness.h"
-#include "network.h"
+#include "netplay.h"
 #include "opentyr.h"
 #include "episodes.h"
 #include "sync.h"
@@ -56,12 +56,9 @@ void JE_paramCheck(int argc, char *argv[])
 		
 		{ 't', 't', "data",              true },
 		
-		{ 'n', 'n', "net",               true },
-		{ 256, 0,   "net-player-name",   true }, // TODO: no short codes because there should
-		{ 257, 0,   "net-player-number", true }, //       be a menu for entering these in the future
-		{ 'p', 'p', "net-port",          true },
-		{ 'd', 'd', "net-delay",         true },
-		
+		{ 256, 0,   "relay",             true },
+		{ 257, 0,   "net-name",          true },
+
 		{ 'X', 'X', "xmas",              false },
 		{ 'c', 'c', "constant",          false },
 		{ 'k', 'k', "death",             false },
@@ -108,12 +105,8 @@ void JE_paramCheck(int argc, char *argv[])
 			       "  -j, --no-joystick            Disable joystick/gamepad input\n"
 			       "  -x, --no-xmas                Disable Christmas mode\n\n"
 			       "  -t, --data=DIR               Set Tyrian data directory\n\n"
-			       "  -n, --net=HOST[:PORT]        Start a networked game\n"
-			       "  --net-player-name=NAME       Sets local player name in a networked game\n"
-			       "  --net-player-number=NUMBER   Sets local player number in a networked game\n"
-			       "                               (1 or 2)\n"
-			       "  -p, --net-port=PORT          Local port to bind (default is 1333)\n"
-			       "  -d, --net-delay=FRAMES       Set lag-compensation delay (default is 1)\n\n"
+			       "  --relay=HOST[:PORT]          Use this relay server for internet games\n"
+			       "  --net-name=NAME              Your name in network games (for this run)\n\n"
 			       "  --dev-script=FILE            Drive the game from a test script (see devscript.h)\n"
 			       "  --record-input=FILE          Record gameplay input and state hashes to FILE\n"
 			       "  --replay-input=FILE          Replay recorded input, checking every state hash\n"
@@ -145,74 +138,14 @@ void JE_paramCheck(int argc, char *argv[])
 			custom_data_dir = option.arg;
 			break;
 			
-		case 'n':
-			isNetworkGame = true;
-			
-			intptr_t temp = (intptr_t)strchr(option.arg, ':');
-			if (temp)
-			{
-				temp -= (intptr_t)option.arg;
-				
-				int temp_port = atoi(&option.arg[temp + 1]);
-				if (temp_port > 0 && temp_port < 49152)
-					network_opponent_port = temp_port;
-				else
-				{
-					fprintf(stderr, "%s: error: invalid network port number\n", argv[0]);
-					exit(EXIT_FAILURE);
-				}
-				
-				network_opponent_host = malloc(temp + 1);
-				SDL_strlcpy(network_opponent_host, option.arg, temp + 1);
-			}
-			else
-			{
-				network_opponent_host = malloc(strlen(option.arg) + 1);
-				strcpy(network_opponent_host, option.arg);
-			}
+		case 256: // --relay
+			net_relay_option = option.arg;
 			break;
-			
-		case 256: // --net-player-name
-			network_player_name = malloc(strlen(option.arg) + 1);
-			strcpy(network_player_name, option.arg);
+
+		case 257: // --net-name
+			net_name_option = option.arg;
 			break;
-			
-		case 257: // --net-player-number
-		{
-			int temp = atoi(option.arg);
-			if (temp >= 1 && temp <= 2)
-				thisPlayerNum = temp;
-			else
-			{
-				fprintf(stderr, "%s: error: invalid network player number\n", argv[0]);
-				exit(EXIT_FAILURE);
-			}
-			break;
-		}
-		case 'p':
-		{
-			int temp = atoi(option.arg);
-			if (temp > 0 && temp < 49152)
-				network_player_port = temp;
-			else
-			{
-				fprintf(stderr, "%s: error: invalid network port number\n", argv[0]);
-				exit(EXIT_FAILURE);
-			}
-			break;
-		}
-		case 'd':
-		{
-			int temp;
-			if (sscanf(option.arg, "%d", &temp) == 1)
-				network_delay = 1 + temp;
-			else
-			{
-				fprintf(stderr, "%s: error: invalid network delay value\n", argv[0]);
-				exit(EXIT_FAILURE);
-			}
-			break;
-		}
+
 		case 'X':
 			override_xmas = true;
 			xmas = true;
@@ -320,12 +253,6 @@ void JE_paramCheck(int argc, char *argv[])
 	
 	if (state_dump_path != NULL)
 		sync_set_state_dump(state_dump_path, state_dump_tick);
-
-	if (quick_start_players != 0 && isNetworkGame)
-	{
-		fprintf(stderr, "%s: error: --quick-arcade cannot be used with --net\n", argv[0]);
-		exit(EXIT_FAILURE);
-	}
 
 	// menu choices aren't recorded, so recordings start and continue without the menus
 	if (sync_is_deterministic() && quick_start_players == 0)

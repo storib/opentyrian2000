@@ -23,6 +23,7 @@
 #include "joystick.h"
 #include "loudness.h"
 #include "mtrand.h"
+#include "netplay.h"
 #include "nortsong.h"
 #include "opentyr.h"
 #include "player.h"
@@ -32,6 +33,7 @@
 #include "video_scale.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #ifdef _MSC_VER
@@ -215,7 +217,8 @@ bool load_opentyrian_config(void)
 	set_scaler_by_name("Scale2x");
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 	memcpy(mouseSettings, defaultMouseSettings, sizeof(mouseSettings));
-	
+	net_set_default_config();
+
 	Config *config = &opentyrian_config;
 	
 	FILE *file = dir_fopen_warn(get_user_directory(), "opentyrian.cfg", "r");
@@ -280,6 +283,16 @@ bool load_opentyrian_config(void)
 		}
 	}
 
+	section = config_find_section(config, "network", NULL);
+	if (section != NULL)
+	{
+		const char *value;
+		if (config_get_string_option(section, "name", &value) && value[0] != '\0')
+			SDL_strlcpy(net_player_name, value, sizeof(net_player_name));
+		if (config_get_string_option(section, "relay", &value) && value[0] != '\0')
+			SDL_strlcpy(net_relay_address, value, sizeof(net_relay_address));
+	}
+
 	fclose(file);
 	
 	return true;
@@ -326,6 +339,14 @@ bool save_opentyrian_config(void)
 	
 	for (size_t i = 0; i < COUNTOF(mouseSettings); ++i)
 		config_set_string_option(section, mouseSettingNames[i], mouseSettingValues[mouseSettings[i] - 1]);
+
+	section = config_find_or_add_section(config, "network", NULL);
+	if (section == NULL)
+		exit(EXIT_FAILURE);  // out of memory
+
+	config_set_string_option(section, "name", net_player_name);
+	// left empty while it's the default, so a new default reaches existing installs
+	config_set_string_option(section, "relay", strcmp(net_relay_address, NET_DEFAULT_RELAY) != 0 ? net_relay_address : NULL);
 
 	FILE *file = dir_fopen(get_user_directory(), "opentyrian.cfg", "w");
 	if (file == NULL)

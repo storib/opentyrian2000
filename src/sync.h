@@ -38,6 +38,11 @@ enum
 	PLAYER_INPUT_LEFT_SIDEKICK  = 1 << 1,
 	PLAYER_INPUT_RIGHT_SIDEKICK = 1 << 2,
 	PLAYER_INPUT_CHANGE_FIRE    = 1 << 3,
+	PLAYER_INPUT_GAME_BUTTONS   = 0x0f,    // the bits above; the ship only ever sees these
+
+	// network games only: every computer pauses or opens the menu at the same tick
+	PLAYER_INPUT_PAUSE          = 1 << 4,
+	PLAYER_INPUT_MENU           = 1 << 5,
 };
 
 /** One player's raw input for one simulation tick. */
@@ -74,7 +79,10 @@ int sync_quit(int exit_code);
  */
 void sync_abort_recording(void);
 
-/** True when the simulation must be reproducible (recording or replaying). */
+/** Writes every hashed value, by name, for the current tick (a network game's desync report). */
+bool sync_write_state_dump(const char *path);
+
+/** True when the simulation must be reproducible (recording, replaying or a network game). */
 bool sync_is_deterministic(void);
 bool sync_is_replaying(void);
 
