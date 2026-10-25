@@ -6,8 +6,10 @@ Status: draft / proposal. Nothing here is implemented yet.
 
 - **4 players on two computers, 2 per computer**, as the main target. The two
   computers can be any mix of **Windows and macOS** (Linux comes for free).
-  The design also allows other splits (4 × 1, 2 + 1 + 1), and four local
-  players on one PC as a development/testing mode.
+  Other splits (4 × 1, 2 + 1 + 1) also work.
+- **At most 2 players per computer, always.** Four players sharing one
+  computer is deliberately not supported, not even as a test mode: too many
+  people on one keyboard and screen gets messy. (Decided 2026-10-24.)
 - **Start from inside the game.** Host / Join with a short room code. No IP
   addresses, port forwarding, or command-line flags.
 - **Reliable.** If the games ever disagree, both players are told exactly when
@@ -115,8 +117,10 @@ and Debian/Ubuntu (`libenet-dev`).
   - Per-slot ship choice comes later, together with new ship types.
 - **HUD:** the 320×200 screen currently has side panels for two players. Four
   players need a compact layout, which needs its own design pass.
-- **Local input:** bindings per local slot (keyboard layout A, keyboard
-  layout B, gamepads). Online games allow up to 2 local slots per PC.
+- **Local input:** two control sets per computer (keyboard layout A,
+  keyboard layout B, mouse, gamepads), one for each of the computer's at
+  most 2 players. Today both local players share one key layout, so the
+  second needs its own.
 - **Saves:** 2-player saves use their own slots (`twoPlayerMode ? 22 : 11`).
   Online games won't save at first.
 
@@ -152,17 +156,17 @@ Lockstep only works if every machine computes **bit-identical** results.
 
 | # | Milestone | Done when |
 |---|-----------|-----------|
-| M0 | Infrastructure | Fork on GitHub, local MSYS2 build, CI building Windows and Linux. |
-| M1 | Input layer + determinism tools ✅ | `JE_playerMovement()` reads input into a `PlayerInput` and applies it separately. Input recorder/replayer and a per-tick state hash exist (`src/sync.c`; `--record-input`, `--replay-input`, `--hash-log`). A 2-player replay verifies on Windows, Linux and macOS in CI. Gameplay unchanged. |
-| M2 | N-player, local | 4 slots on one PC, duplicated ships with tints, 4-player HUD, per-slot bindings. |
+| M0 | Infrastructure ✅ | Fork on GitHub, local MSYS2 build, CI building Windows, Linux and macOS. |
+| M1 | Input layer + determinism tools ✅ | `JE_playerMovement()` reads input into a `PlayerInput` and applies it separately. Input recorder/replayer and a per-tick state hash exist (`src/sync.c`; `--record-input`, `--replay-input`, `--hash-log`, `--state-dump`). Replays verify on Windows, Linux and macOS in CI. Gameplay unchanged. Adversarially reviewed (3 rounds). |
+| M2 | 4-player core | 4 player slots in the simulation, duplicated ships with tints, 4-player HUD in the widescreen side panels, a second control set so a computer can host its 2 players. No 4-on-one-computer mode: players 3–4 are verified with replays (their input comes from the recording) until M3 lets two computers play for real. |
 | M3 | Netcode v2 on LAN | ENet transport, embedded relay, in-game Host/Join, 2–4 players, desync reporting. Old `network.c` removed. |
 | M4 | Internet | Standalone relay on a droplet, room codes, deploy script, ping display, adaptive input delay. |
 | M5 | Beyond | Story mode online (shop/menu sync), rejoin after disconnect, new ship types. |
 
 M1 comes first because it is the foundation for everything else. The input
-abstraction is what both local 4-player and the new netcode build on, and the
-replay hash check is how we prove the game stays in sync before involving a
-network.
+abstraction is what both the 4-player core and the new netcode build on, and
+the replay hash check is how we prove the game stays in sync before involving
+a network.
 
 ## Open questions
 
