@@ -45,12 +45,17 @@
 #define REPLAY_VERSION 2
 
 // exit codes of a replay (the dev script timeout uses 4)
-#define REPLAY_EXIT_DIVERGED  3
-#define REPLAY_EXIT_TRUNCATED 5
+#define REPLAY_EXIT_DIVERGED    3
+#define REPLAY_EXIT_TRUNCATED   5
+#define REPLAY_EXIT_UNFINISHED  6
 
 Uint32 sim_tick = 0;
 
 static FILE *record_file = NULL, *replay_file = NULL, *hash_log = NULL;
+
+// A recording is written to "<path>.part" and only renamed to <path> by a clean quit, so a
+// failed or aborted run never replaces a good recording.
+static char *record_path = NULL, *record_part_path = NULL;
 
 static unsigned int current_level = 0;
 static Uint32 recorded_hashes = 0, verified_ticks = 0;
@@ -138,7 +143,7 @@ static float bits_float(Uint32 bits)
 
 /* --- opening --- */
 
-/** Runs at exit: marks the recording as complete. A crashed recording has no end record. */
+/** Completes the recording: writes the end record and moves the file into place. */
 static void finish_recording(void)
 {
 	if (record_file == NULL)
@@ -148,9 +153,38 @@ static void finish_recording(void)
 	put_u32(record_file, recorded_hashes);
 
 	const bool write_failed = ferror(record_file) != 0;
-	if (fclose(record_file) != 0 || write_failed)
-		fprintf(stderr, "error: failed to write the replay file\n");
+	const bool close_failed = fclose(record_file) != 0;
 	record_file = NULL;
+
+	if (write_failed || close_failed)
+	{
+		fprintf(stderr, "error: failed to write the replay file '%s'\n", record_part_path);
+		return;
+	}
+
+	remove(record_path);  // rename() won't replace an existing file on Windows
+	if (rename(record_part_path, record_path) != 0)
+		fprintf(stderr, "error: failed to move '%s' to '%s'\n", record_part_path, record_path);
+	else
+		fprintf(stderr, "sync: recorded %u ticks to %s\n", (unsigned)recorded_hashes, record_path);
+}
+
+int sync_quit(int exit_code)
+{
+	if (exit_code == 0)
+		finish_recording();
+
+	// a replay only succeeds through replay_finished(); any other clean exit means it didn't finish
+	if (replay_file != NULL && exit_code == 0)
+	{
+		fprintf(stderr, "replay: FAILED, the game exited before the replay finished; %u ticks verified\n",
+		        (unsigned)verified_ticks);
+		if (hash_log != NULL)
+			fprintf(hash_log, "UNFINISHED\n");
+		return REPLAY_EXIT_UNFINISHED;
+	}
+
+	return exit_code;
 }
 
 bool sync_open_record(const char *path)
@@ -161,16 +195,22 @@ bool sync_open_record(const char *path)
 		return false;
 	}
 
-	record_file = fopen(path, "wb");
+	record_path = SDL_strdup(path);
+	record_part_path = malloc(strlen(path) + 6);
+	if (record_path == NULL || record_part_path == NULL)
+		return false;
+	strcpy(record_part_path, path);
+	strcat(record_part_path, ".part");
+
+	record_file = fopen(record_part_path, "wb");
 	if (record_file == NULL)
 	{
-		fprintf(stderr, "error: failed to create replay file '%s'\n", path);
+		fprintf(stderr, "error: failed to create replay file '%s'\n", record_part_path);
 		return false;
 	}
 
 	fwrite(REPLAY_MAGIC, 1, 4, record_file);
 	put_u16(record_file, REPLAY_VERSION);
-	atexit(finish_recording);
 	return true;
 }
 
@@ -265,6 +305,11 @@ static void replay_finished(void)
 		replay_truncated();
 	if (hashes != verified_ticks)
 		replay_diverged("number of ticks", hashes, verified_ticks);
+	if (verified_ticks == 0)
+	{
+		fprintf(stderr, "replay: FAILED, the recording has no gameplay ticks\n");
+		replay_exit(REPLAY_EXIT_TRUNCATED, "EMPTY");
+	}
 
 	fprintf(stderr, "replay: finished, %u ticks verified\n", (unsigned)verified_ticks);
 	replay_exit(0, NULL);
@@ -732,6 +777,19 @@ Uint64 sync_state_hash(void)
 	for (uint i = 0; i < COUNTOF(SFCurrentCode); ++i)
 		H_ARRAY(SFCurrentCode[i]);
 	H_ARRAY(SFExecuted);
+	H(randomExplosions);
+	H(levelTimerJumpTo);
+	H(returnActive);
+	H(superEnemy254Jump);
+	H(galagaShotFreq);
+	H(forceEvents);
+	H(background2over);
+	H(background3over);
+	H(topEnemyOver);
+	H(skyEnemyOverAll);
+	H(mapXPos); H(mapXOfs);
+	H(mapX2Pos); H(mapX2Ofs);
+	H(mapX3Pos); H(mapX3Ofs);
 
 	// scrolling: positions as offsets into the maps, never as addresses
 	H(backPos); H(backPos2); H(backPos3);

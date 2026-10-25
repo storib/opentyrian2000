@@ -327,6 +327,13 @@ void JE_paramCheck(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	// menu choices aren't recorded, so recordings start and continue without the menus
+	if (sync_is_deterministic() && quick_start_players == 0)
+	{
+		fprintf(stderr, "%s: error: --record-input and --replay-input need --quick-arcade\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
 	// legacy parameter support
 	for (int i = option.argn; i < argc; ++i)
 	{

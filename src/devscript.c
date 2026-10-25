@@ -252,11 +252,21 @@ static void run_line(const char *line, Uint32 now)
 	}
 	else if (strcmp(command, "quit") == 0)
 	{
-		const int code = atoi(arg1);
+		int code = atoi(arg1);
 		if (code == 0)
 			JE_tyrianHalt(0);
 
-		// JE_tyrianHalt treats some codes specially and truncates to a byte, so exit directly
+		// exit codes wrap at 256 on POSIX, and above 125 shells use them for signals
+		if (code < 0 || code > 125)
+		{
+			fprintf(stderr, "devscript: exit code %d out of range 0-125, using 1\n", code);
+			code = 1;
+		}
+		if (code == 3 || code == 5 || code == 6)
+			fprintf(stderr, "devscript: warning: exit code %d also means a replay failure\n", code);
+
+		// JE_tyrianHalt treats some codes specially and truncates to a byte, so exit directly;
+		// a recording that quits with a failure code is left incomplete on purpose
 		fprintf(stderr, "devscript: quit with exit code %d\n", code);
 		exit(code);
 	}

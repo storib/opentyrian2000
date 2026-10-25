@@ -60,6 +60,13 @@ bool sync_open_hash_log(const char *path);
 /** Dump every hashed value at the end of `tick`, or (tick 0) when a replay diverges. */
 void sync_set_state_dump(const char *path, Uint32 tick);
 
+/**
+ * Call on every way the game quits, with the exit code it would use; returns the exit code
+ * to use instead.  A clean quit (0) completes a recording; while replaying, quitting before
+ * the replay finished is a failure (6), so exit code 0 always means a verified replay.
+ */
+int sync_quit(int exit_code);
+
 /** True when the simulation must be reproducible (recording or replaying). */
 bool sync_is_deterministic(void);
 bool sync_is_replaying(void);

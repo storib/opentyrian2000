@@ -38,3 +38,4 @@ tyrian.sav
 
 # Sync test output
 /tests/sync/out/
+*.otr.part

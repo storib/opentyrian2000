@@ -699,8 +699,10 @@ start_level:
 			fade_black(10);
 			video_hud_split = false;
 
-			// quit or game over: back to the arcade menu, even when quick-starting
-			autostart_levels = false;
+			// Quit or game over: back to the arcade menu, even when quick-starting. Not while
+			// recording or replaying, though: choices in that menu aren't recorded.
+			if (!sync_is_deterministic())
+				autostart_levels = false;
 
 			if (timedBattleMode)
 			{

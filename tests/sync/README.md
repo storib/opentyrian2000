@@ -32,8 +32,11 @@ The game exits by itself when the replay ends:
   tick where the state differs (add `--state-dump=FILE` to write every hashed
   value at that tick, for diffing against another machine), or
 - exit code 4 if the replay got stuck and the script's timeout was reached, or
-- exit code 5 if the recording is truncated or corrupt (for example, the
-  recording run crashed before it could write the end record).
+- exit code 5 if the recording is truncated, corrupt or empty, or
+- exit code 6 if the game quit before the replay finished (a script `quit`,
+  closing the window, Ctrl+C).
+
+Exit code 0 always means every recorded tick was verified.
 
 CI replays every `.otr` here on Windows, Linux and macOS
 (`.github/workflows/sync-check.yml`). It uploads screenshots, per-tick hash
@@ -49,5 +52,11 @@ and `tyrian.sav` from the game folder), then for each recording:
 opentyrian2000 --quick-arcade=2:1:normal --dev-script=tests/sync/2p-arcade-record.txt --record-input=tests/sync/2p-arcade.otr
 opentyrian2000 --quick-arcade=2:1:normal --dev-script=tests/sync/2p-link-record.txt --record-input=tests/sync/2p-link.otr
 ```
+
+The recording is written to `FILE.part` and only moved over `FILE` when the
+run quits cleanly (a script `quit` or `quit 0`), so a failed or aborted run
+never replaces a good recording. Recording and replaying need
+`--quick-arcade`, because choices in the between-level menus aren't recorded;
+while recording, that menu is skipped even after Quit Level or a game over.
 
 While a dev script runs, real keyboard, mouse and gamepad input is ignored.

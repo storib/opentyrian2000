@@ -24,6 +24,7 @@
 #include "mouse.h"
 #include "network.h"
 #include "opentyr.h"
+#include "varz.h"
 #include "video.h"
 #include "video_scale.h"
 
@@ -280,8 +281,8 @@ void service_SDL_events(JE_boolean clear_new)
 				break;
 
 			case SDL_QUIT:
-				/* TODO: Call the cleanup code here. */
-				exit(0);
+				// closing the window, or Ctrl+C / SIGTERM on Linux and macOS
+				JE_tyrianHalt(0);
 				break;
 		}
 	}
