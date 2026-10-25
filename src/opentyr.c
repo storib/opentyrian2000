@@ -41,6 +41,7 @@
 #include "params.h"
 #include "picload.h"
 #include "sprite.h"
+#include "game_menu.h"
 #include "tyrian2.h"
 #include "varz.h"
 #include "vga256d.h"
@@ -842,7 +843,7 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef NDEBUG
-	if (!isNetworkGame)
+	if (!isNetworkGame && quick_start_players == 0)
 		intro_logos();
 #endif
 
@@ -864,7 +865,15 @@ int main(int argc, char *argv[])
 		}
 		else
 #endif
+		if (quick_start_players != 0)
 		{
+			quickStartArcade();
+			quick_start_players = 0;  // back to the title screen afterwards
+		}
+		else
+		{
+			autostart_levels = false;
+
 			if (!titleScreen())
 			{
 				// Player quit from title screen.

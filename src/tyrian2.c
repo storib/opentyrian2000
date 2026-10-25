@@ -3631,6 +3631,8 @@ bool titleScreen(void)
 	}
 }
 
+static void setupNewGame(void);
+
 bool newGame(void)
 {
 	if (gameplaySelect())
@@ -3644,42 +3646,71 @@ bool newGame(void)
 		else if (episodeSelect() && difficultySelect())
 			gameLoaded = true;
 
-		initialDifficulty = difficultyLevel;
-
-		if (onePlayerAction)
-		{
-			player[0].cash = 0;
-
-			player[0].items.ship = 8;  // Stalker
-		}
-		else if (twoPlayerMode)
-		{
-			for (uint i = 0; i < COUNTOF(player); ++i)
-				player[i].cash = 0;
-
-			player[0].items.ship = 11;  // Silver Ship
-
-			difficultyLevel++;
-
-			inputDevice[0] = 1;
-			inputDevice[1] = 2;
-		}
-		else if (richMode)
-		{
-			player[0].cash = 1000000;
-		}
-		else if (gameLoaded)
-		{
-			// allows player to smuggle arcade/super-arcade ships into full game
-
-			const ulong initial_cash[] = { 10000, 15000, 20000, 30000, 20000 };
-
-			assert(episodeNum >= 1 && episodeNum <= EPISODE_AVAILABLE);
-			player[0].cash = initial_cash[episodeNum - 1];
-		}
+		setupNewGame();
 	}
 
 	return gameLoaded;
+}
+
+unsigned int quick_start_players = 0, quick_start_episode = 1;
+JE_shortint quick_start_difficulty = DIFFICULTY_NORMAL;
+
+/**
+ * Starts an arcade game straight from the quick_start_* settings, skipping the menus,
+ * so tests (and later network games) start the same game on every machine.
+ */
+void quickStartArcade(void)
+{
+	onePlayerAction = quick_start_players == 1;
+	twoPlayerMode = quick_start_players == 2;
+	timedBattleMode = false;
+
+	JE_initEpisode(quick_start_episode);
+	initial_episode_num = episodeNum;
+	difficultyLevel = quick_start_difficulty;
+	gameLoaded = true;
+
+	setupNewGame();
+
+	autostart_levels = true;
+}
+
+/** Sets up the players for a new game, once the game mode, episode and difficulty are chosen. */
+static void setupNewGame(void)
+{
+	initialDifficulty = difficultyLevel;
+
+	if (onePlayerAction)
+	{
+		player[0].cash = 0;
+
+		player[0].items.ship = 8;  // Stalker
+	}
+	else if (twoPlayerMode)
+	{
+		for (uint i = 0; i < COUNTOF(player); ++i)
+			player[i].cash = 0;
+
+		player[0].items.ship = 11;  // Silver Ship
+
+		difficultyLevel++;
+
+		inputDevice[0] = 1;
+		inputDevice[1] = 2;
+	}
+	else if (richMode)
+	{
+		player[0].cash = 1000000;
+	}
+	else if (gameLoaded)
+	{
+		// allows player to smuggle arcade/super-arcade ships into full game
+
+		const ulong initial_cash[] = { 10000, 15000, 20000, 30000, 20000 };
+
+		assert(episodeNum >= 1 && episodeNum <= EPISODE_AVAILABLE);
+		player[0].cash = initial_cash[episodeNum - 1];
+	}
 }
 
 bool newSuperArcadeGame(unsigned int i)

@@ -65,7 +65,7 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: |
           mkdir -p tests/sync/out
-          ./opentyrian2000 --no-sound \
+          ./opentyrian2000 --no-sound --quick-arcade=2:1:normal \
             --dev-script=tests/sync/2p-arcade-replay.txt \
             --replay-input=tests/sync/2p-arcade.otr \
             --hash-log=tests/sync/out/hash.txt

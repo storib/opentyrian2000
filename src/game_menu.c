@@ -63,6 +63,8 @@ enum
 	MENU_MOUSE_CONFIG    = 14,  // T2000
 };
 
+bool autostart_levels = false;
+
 /*** Structs ***/
 struct cube_struct
 {
@@ -253,6 +255,14 @@ void JE_itemScreen(void)
 
 			if (superTyrian)
 				curMenu = MENU_SUPER_TYRIAN;
+		}
+
+		// same as choosing Start Level
+		if (autostart_levels && (curMenu == MENU_2_PLAYER_ARCADE || curMenu == MENU_1_PLAYER_ARCADE))
+		{
+			mainLevel = mapSection[mapPNum-1];
+			jumpSection = true;
+			break;
 		}
 
 		paletteChanged = false;

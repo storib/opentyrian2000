@@ -24,6 +24,9 @@
 
 typedef JE_byte JE_MenuChoiceType[MENU_MAX];
 
+// When set, the arcade game menu between levels picks Start Level by itself.
+extern bool autostart_levels;
+
 JE_longint JE_cashLeft(void);
 void JE_itemScreen(void);
 

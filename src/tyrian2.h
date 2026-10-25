@@ -60,6 +60,12 @@ void networkStartScreen(void);
 #endif
 bool titleScreen(void);
 bool newGame(void);
+
+// --quick-arcade: start an arcade game without the menus (quick_start_players is 0 if not)
+extern unsigned int quick_start_players, quick_start_episode;
+extern JE_shortint quick_start_difficulty;
+void quickStartArcade(void);
+
 bool newSuperArcadeGame(unsigned int i);
 bool newSuperTyrianGame(void);
 void JE_readTextSync(void);

@@ -25,7 +25,9 @@
 #include "loudness.h"
 #include "network.h"
 #include "opentyr.h"
+#include "episodes.h"
 #include "sync.h"
+#include "tyrian2.h"
 #include "varz.h"
 #include "xmas.h"
 
@@ -70,6 +72,7 @@ void JE_paramCheck(int argc, char *argv[])
 		{ 259, 0,   "record-input",      true },
 		{ 260, 0,   "replay-input",      true },
 		{ 261, 0,   "hash-log",          true },
+		{ 262, 0,   "quick-arcade",      true },
 
 		{ 0, 0, NULL, false}
 	};
@@ -109,7 +112,9 @@ void JE_paramCheck(int argc, char *argv[])
 			       "  --dev-script=FILE            Drive the game from a test script (see devscript.h)\n"
 			       "  --record-input=FILE          Record gameplay input and state hashes to FILE\n"
 			       "  --replay-input=FILE          Replay recorded input, checking every state hash\n"
-			       "  --hash-log=FILE              Write the per-tick state hash to FILE\n", argv[0]);
+			       "  --hash-log=FILE              Write the per-tick state hash to FILE\n"
+			       "  --quick-arcade=P[:E[:D]]     Skip the menus and start a P-player arcade game,\n"
+			       "                               episode E, difficulty D (easy, normal or hard)\n", argv[0]);
 			exit(0);
 			break;
 			
@@ -245,6 +250,32 @@ void JE_paramCheck(int argc, char *argv[])
 			if (!sync_open_hash_log(option.arg))
 				exit(EXIT_FAILURE);
 			break;
+
+		case 262: // --quick-arcade
+		{
+			unsigned int players = 0, episode = 1;
+			char difficulty[16] = "normal";
+			sscanf(option.arg, "%u:%u:%15s", &players, &episode, difficulty);
+
+			if (strcmp(difficulty, "easy") == 0)
+				quick_start_difficulty = DIFFICULTY_EASY;
+			else if (strcmp(difficulty, "normal") == 0)
+				quick_start_difficulty = DIFFICULTY_NORMAL;
+			else if (strcmp(difficulty, "hard") == 0)
+				quick_start_difficulty = DIFFICULTY_HARD;
+			else
+				players = 0;
+
+			if (players < 1 || players > 2 || episode < 1 || episode > EPISODE_AVAILABLE)
+			{
+				fprintf(stderr, "%s: error: invalid --quick-arcade value '%s'\n", argv[0], option.arg);
+				exit(EXIT_FAILURE);
+			}
+
+			quick_start_players = players;
+			quick_start_episode = episode;
+			break;
+		}
 
 		default:
 			assert(false);

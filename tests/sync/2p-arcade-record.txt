@@ -1,21 +1,8 @@
-# Navigates from a fresh start (default settings) to 2 Player Arcade, episode 1, normal.
-# Shared by the record and replay scripts; keep them in step.
-# Then plays ~19 seconds; run with --record-input to make a new recording.
+# Plays ~19 seconds of 2 Player Arcade. Run with
+#   --quick-arcade=2:1:normal --record-input=tests/sync/2p-arcade.otr
+# The game starts the level by itself; only the gameplay keys are scripted.
 window 640 400
-wait 9000
-key Return
-wait 1500
-key Down
-key Down
-key Down
-key Return
-wait 1500
-key Return
-wait 1500
-key Return
-wait 5000
-key Return
-wait 4000
+wait 3000
 
 down Space
 down Left
