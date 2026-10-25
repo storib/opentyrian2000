@@ -640,7 +640,8 @@ void JE_main(void)
 
 start_level:
 
-	video_hud_split = false;
+	// video_hud_split stays on while the level's last frame is still on screen (the level
+	// end animation draws over it) and is cleared below on every way out of here.
 
 	mouseSetRelative(false);
 
@@ -688,6 +689,7 @@ start_level:
 		{
 			mainLevel = nextLevel;
 			JE_endLevelAni();
+			video_hud_split = false;
 
 			fade_song();
 		}
@@ -695,6 +697,10 @@ start_level:
 		{
 			fade_song();
 			fade_black(10);
+			video_hud_split = false;
+
+			// quit or game over: back to the arcade menu, even when quick-starting
+			autostart_levels = false;
 
 			if (timedBattleMode)
 			{
@@ -716,6 +722,7 @@ start_level:
 		}
 	}
 	doNotSaveBackup = false;
+	video_hud_split = false;
 
 	if (play_demo)
 		return;
@@ -2198,7 +2205,7 @@ draw_player_shot_loop_end:
 				{
 					push_joysticks_as_keyboard();
 					service_SDL_events(true);
-					if ((newkey || button[0] || button[1] || button[2]) || newmouse)
+					if (sync_event(SYNC_EVENT_GAME_OVER_CONTINUE, (newkey || button[0] || button[1] || button[2]) || newmouse))
 					{
 						reallyEndLevel = true;
 					}
@@ -2235,7 +2242,8 @@ draw_player_shot_loop_end:
 				goto level_loop;
 		}
 
-		if (pause_pressed || !windowHasFocus)
+		// pausing doesn't change the game, so a replay just keeps going
+		if ((pause_pressed || !windowHasFocus) && !sync_is_replaying())
 		{
 			pause_pressed = false;
 
@@ -2244,20 +2252,33 @@ draw_player_shot_loop_end:
 			else
 				JE_pauseGame();
 		}
+		pause_pressed = false;
 
-		if (ingamemenu_pressed)
+		// When recording, whether the menu opened and whether it quit the level are recorded;
+		// a replay applies those outcomes without showing the menu.
+		const bool menu_opened = sync_event(SYNC_EVENT_MENU_OPENED, ingamemenu_pressed);
+		ingamemenu_pressed = false;
+
+		if (menu_opened)
 		{
-			ingamemenu_pressed = false;
-
 			if (isNetworkGame)
 			{
 				inGameMenuRequest = true;
 			}
 			else
 			{
-				yourInGameMenuRequest = true;
-				JE_doInGameSetup();
-				skipStarShowVGA = true;
+				if (!sync_is_replaying())
+				{
+					yourInGameMenuRequest = true;
+					JE_doInGameSetup();
+					skipStarShowVGA = true;
+				}
+
+				if (sync_event(SYNC_EVENT_MENU_QUIT_LEVEL, reallyEndLevel && playerEndLevel))
+				{
+					reallyEndLevel = true;
+					playerEndLevel = true;
+				}
 			}
 		}
 	}

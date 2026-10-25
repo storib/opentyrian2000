@@ -109,7 +109,8 @@ void init_keyboard(void)
 
 void mouseSetRelative(bool enable)
 {
-	SDL_SetRelativeMouseMode(enable && windowHasFocus);
+	// a dev script feeds mouse motion itself and must not capture the real mouse
+	SDL_SetRelativeMouseMode(enable && windowHasFocus && !devscript_enabled);
 
 	mouseRelativeEnabled = enable;
 
@@ -152,6 +153,9 @@ void service_SDL_events(JE_boolean clear_new)
 
 	while (SDL_PollEvent(&ev))
 	{
+		if (!devscript_allows_event(&ev))
+			continue;
+
 		switch (ev.type)
 		{
 			case SDL_WINDOWEVENT:

@@ -258,11 +258,31 @@ void JE_paramCheck(int argc, char *argv[])
 				exit(EXIT_FAILURE);
 			break;
 
-		case 262: // --quick-arcade
+		case 262: // --quick-arcade=PLAYERS[:EPISODE[:DIFFICULTY]]
 		{
-			unsigned int players = 0, episode = 1;
-			char difficulty[16] = "normal";
-			sscanf(option.arg, "%u:%u:%15s", &players, &episode, difficulty);
+			const char *field = option.arg;
+			char *end;
+			unsigned long players = 0, episode = 1;
+			const char *difficulty = "normal";
+
+			bool ok = isdigit((unsigned char)field[0]);
+			if (ok)
+			{
+				players = strtoul(field, &end, 10);
+				ok = *end == '\0' || *end == ':';
+			}
+			if (ok && *end == ':')
+			{
+				field = end + 1;
+				ok = isdigit((unsigned char)field[0]);
+				if (ok)
+				{
+					episode = strtoul(field, &end, 10);
+					ok = *end == '\0' || *end == ':';
+				}
+				if (ok && *end == ':')
+					difficulty = end + 1;
+			}
 
 			if (strcmp(difficulty, "easy") == 0)
 				quick_start_difficulty = DIFFICULTY_EASY;
@@ -271,11 +291,11 @@ void JE_paramCheck(int argc, char *argv[])
 			else if (strcmp(difficulty, "hard") == 0)
 				quick_start_difficulty = DIFFICULTY_HARD;
 			else
-				players = 0;
+				ok = false;
 
-			if (players < 1 || players > 2 || episode < 1 || episode > EPISODE_AVAILABLE)
+			if (!ok || players < 1 || players > 2 || episode < 1 || episode > EPISODE_AVAILABLE)
 			{
-				fprintf(stderr, "%s: error: invalid --quick-arcade value '%s'\n", argv[0], option.arg);
+				fprintf(stderr, "%s: error: invalid --quick-arcade value '%s' (expected PLAYERS[:EPISODE[:easy|normal|hard]])\n", argv[0], option.arg);
 				exit(EXIT_FAILURE);
 			}
 
@@ -300,6 +320,12 @@ void JE_paramCheck(int argc, char *argv[])
 	
 	if (state_dump_path != NULL)
 		sync_set_state_dump(state_dump_path, state_dump_tick);
+
+	if (quick_start_players != 0 && isNetworkGame)
+	{
+		fprintf(stderr, "%s: error: --quick-arcade cannot be used with --net\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 
 	// legacy parameter support
 	for (int i = option.argn; i < argc; ++i)

@@ -32,13 +32,19 @@
  *   key NAME [HOLD_MS]    press and release a key (SDL scancode name, e.g. Return;
  *                         write spaces as underscores, e.g. Left_Ctrl)
  *   down NAME / up NAME   press or release a key, for holding several at once
+ *   mouse DX DY           move the mouse by DX, DY
+ *   mousedown B / mouseup B   press or release mouse button B (1 left, 2 middle, 3 right)
  *   shot PATH             save the next presented frame as a BMP
  *   window W H            resize the window
  *   mode NAME             set the scaling mode (e.g. Widescreen)
  *   quit [CODE]           exit the game, with exit code CODE (default 0)
  *
- * Lines starting with '#' are comments.
+ * Lines starting with '#' are comments.  While a script runs, real keyboard, mouse
+ * and gamepad input is ignored, so nothing but the script can affect the game.
  */
+
+// window ID marking events the script injected, as opposed to real input
+#define DEVSCRIPT_WINDOW_ID 0x44535054u
 
 extern bool devscript_enabled;
 
@@ -46,5 +52,8 @@ bool devscript_load(const char *path);
 
 void devscript_tick(void);
 void devscript_on_present(SDL_Renderer *renderer);
+
+/** False for real keyboard/mouse events while a script runs. */
+bool devscript_allows_event(const SDL_Event *ev);
 
 #endif /* DEVSCRIPT_H */

@@ -3147,6 +3147,15 @@ void JE_inGameDisplays(void)
 
 void JE_mainKeyboardInput(void)
 {
+	// While recording or replaying, keys outside PlayerInput would change the game without
+	// being recorded (help, cheats, effect toggles), so only pause and the menu are read.
+	if (sync_is_deterministic())
+	{
+		pause_pressed = pause_pressed || keysactive[SDL_SCANCODE_P];
+		ingamemenu_pressed = ingamemenu_pressed || keysactive[SDL_SCANCODE_ESCAPE];
+		return;
+	}
+
 	JE_gammaCheck();
 
 	/* { Network Request Commands } */
@@ -5071,8 +5080,9 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					else if (twoPlayerLinked)
 					{
 						// players get equal share of pick-up cash when linked
+						// signed division: dividing by COUNTOF's size_t would turn negative values huge
 						for (uint i = 0; i < COUNTOF(player); ++i)
-							player[i].cash += evalue / COUNTOF(player);
+							player[i].cash += evalue / (int)COUNTOF(player);
 					}
 					else
 					{

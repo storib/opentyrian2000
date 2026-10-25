@@ -65,11 +65,17 @@ jobs:
           SDL_AUDIODRIVER: dummy
         run: |
           mkdir -p tests/sync/out
-          ./opentyrian2000 --no-sound --quick-arcade=2:1:normal \
-            --dev-script=tests/sync/2p-arcade-replay.txt \
-            --replay-input=tests/sync/2p-arcade.otr \
-            --hash-log=tests/sync/out/hash.txt \
-            --state-dump=tests/sync/out/state.txt
+          status=0
+          for replay in tests/sync/*.otr; do
+            name=$(basename "$replay" .otr)
+            echo "=== $name"
+            ./opentyrian2000 --no-sound --quick-arcade=2:1:normal \
+              --dev-script=tests/sync/2p-arcade-replay.txt \
+              --replay-input="$replay" \
+              --hash-log="tests/sync/out/$name-hash.txt" \
+              --state-dump="tests/sync/out/$name-state.txt" || status=1
+          done
+          exit $status
 
       - name: Upload screenshots and hash log
         if: always()

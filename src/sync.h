@@ -64,12 +64,29 @@ void sync_set_state_dump(const char *path, Uint32 tick);
 bool sync_is_deterministic(void);
 bool sync_is_replaying(void);
 
+/** Ends the replay if the recording ends here, e.g. at a menu between levels. */
+void sync_replay_check_end(void);
+
 void sync_level_start(unsigned int level);
 void sync_tick_begin(void);
 void sync_tick_end(void);
 
 void sync_record_input(unsigned int player_num, const PlayerInput *input);
 void sync_replay_input(unsigned int player_num, PlayerInput *input);
+
+/** Game decisions made from input outside PlayerInput, recorded so replays repeat them. */
+enum
+{
+	SYNC_EVENT_GAME_OVER_CONTINUE = 1,  // a key was pressed on the game over screen
+	SYNC_EVENT_MENU_OPENED        = 2,  // the in-game menu was opened this tick
+	SYNC_EVENT_MENU_QUIT_LEVEL    = 3,  // ...and the player chose Quit Level
+};
+
+/**
+ * Returns local_value, recording it if recording; when replaying, returns the recorded
+ * value instead, so local input can't change what the replay does.
+ */
+bool sync_event(Uint8 event, bool local_value);
 
 Uint64 sync_state_hash(void);
 

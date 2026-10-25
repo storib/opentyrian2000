@@ -160,6 +160,9 @@ void JE_itemScreen(void)
 {
 	bool quit = false;
 
+	// a recording that quit or lost a level ends at this menu
+	sync_replay_check_end();
+
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');
 

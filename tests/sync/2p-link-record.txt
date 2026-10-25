@@ -1,0 +1,237 @@
+# Player 2 (mouse) links onto player 1 and sweeps the Dragonwing's link gun around while
+# firing, so the replay exercises the turret maths (dm_sinf/dm_cosf, aimed shot directions).
+# Run with
+#   --quick-arcade=2:1:normal --record-input=tests/sync/2p-link.otr
+window 640 400
+wait 3000
+
+# P1 fires throughout
+down Space
+
+# P2 starts 90 pixels to the right of P1: fly left until the ships overlap
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+mouse -20 0
+wait 40
+# hold still so the ships link
+wait 600
+
+# fire the link gun and sweep it all the way round: each push turns it up to 0.2 rad
+mousedown 1
+# turret toward up
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+# turret toward right
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+mouse 8 0
+wait 30
+# turret toward down
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+mouse 0 8
+wait 30
+# turret toward left
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+mouse -8 0
+wait 30
+# turret toward up
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouse 0 -8
+wait 30
+mouseup 1
+
+# P1 flies around with the turret attached
+down Left
+wait 1000
+up Left
+down Right
+wait 1500
+up Right
+up Space
+wait 1000
+quit
