@@ -27,7 +27,7 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
 | M1 Input layer + determinism tools | ✅ Adversarially reviewed in 3 rounds; all findings fixed |
 | M3 Netcode v2 (relay, room codes, LAN, Host/Join in menus) | ✅ Built before M2, so 2 players (one per computer). Tested with two instances on one PC (`tests/net/`); not yet between two real computers |
 | M2 4-player core | Not started. Still at most 2 players per computer |
-| M4 Internet (droplet, adaptive delay, ping) | Relay server and deploy script exist; the droplet isn't set up yet |
+| M4 Internet (droplet, adaptive delay, ping) | The relay runs on a droplet (206.189.70.45, SFO2) and is the game's default. Adaptive delay and ping display not started |
 
 **Known gaps:**
 - No sync recording yet exercises orbiting sidekicks, special weapons,
@@ -37,9 +37,9 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
   makes it do so.
 - The attract-mode demo can still be ended by a real keypress, which is
   harmless for sync.
-- The game's default relay address (`NET_DEFAULT_RELAY` in `src/netplay.c`)
-  is a placeholder until the droplet exists. Until then, internet games need
-  `--relay=HOST` or `[network] relay=` in `opentyrian.cfg`.
+- The default relay is a bare IP address (`NET_DEFAULT_RELAY` in
+  `src/netplay.h`). If the droplet is ever replaced, released games need the
+  new address; a DNS name would avoid that.
 - The relay waits for every player's input; a player with a bad connection
   slows everyone down. Repeating a late input is planned for M4.
 
@@ -55,6 +55,20 @@ a port of the DOS shoot-'em-up Tyrian 2000). Goals:
 - **Untracked local files:** `data/` (the game data), `*.dll` and the built
   exe are git-ignored. The game writes `opentyrian.cfg`, `tyrian.cfg` and
   `tyrian.sav` into its working directory, also ignored.
+
+### The relay server
+
+- **Droplet:** `tyrian-relay`, DigitalOcean SFO2, Ubuntu 24.04, $4/month (512
+  MB), at `206.189.70.45`. Created 2026-10-25. SFO3 had no $4 plan.
+- **Access:** `ssh -i ~/.ssh/tyrian_relay_ed25519 root@206.189.70.45`. That key
+  is on the owner's Windows PC only. In DigitalOcean it's named
+  `tyrian-relay-deploy`.
+- **Service:** `tyrian-relay.service` (systemd), UDP 21900; ufw allows only
+  22/tcp and 21900/udp. Logs: `journalctl -u tyrian-relay`.
+- **Updating:** `sh tools/deploy-relay.sh root@206.189.70.45` rebuilds it from
+  this checkout. Deploy whenever `src/relay.c` or `src/netproto.h` changes;
+  bumping `NET_PROTOCOL_VERSION` makes older games get refused with a
+  "different version" message.
 
 ### Files we added or changed most
 

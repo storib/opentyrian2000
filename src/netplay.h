@@ -36,8 +36,8 @@ extern bool isNetworkGame;
 /** The local player's number (1 or 2) in a network game. */
 extern uint thisPlayerNum;
 
-/** The internet relay games use unless opentyrian.cfg or --relay names another. */
-#define NET_DEFAULT_RELAY "relay.invalid"
+/** The internet relay games use unless opentyrian.cfg or --relay names another (a DigitalOcean droplet, SFO2). */
+#define NET_DEFAULT_RELAY "206.189.70.45"
 
 /** The local player's name and the internet relay ("host" or "host:port"), from opentyrian.cfg. */
 extern char net_player_name[NET_NAME_LEN];

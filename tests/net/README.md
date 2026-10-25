@@ -31,7 +31,7 @@ Windows (`.github/workflows/sync-check.yml`) and uploads that folder.
 Running the internet test against the real relay:
 
 ```
-powershell -File tests/net/run-local.ps1 -Mode internet -Relay RELAY_ADDRESS
+powershell -File tests/net/run-local.ps1 -Mode internet -Relay 206.189.70.45
 ```
 
 Two separate computers are the real test, which these don't replace: on each,

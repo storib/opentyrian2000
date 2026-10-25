@@ -15,7 +15,8 @@
 #   menu-leave  player 2 closes the game while its in-game menu holds both
 #             players; player 1 must not be left waiting.
 #
-# Without -Relay, a relay is started here (internet, desync and leave modes).
+# Without -Relay, a relay is started here (every mode but lan). -Relay default
+# uses the game's built-in relay address, as a player's game would.
 # Run from the repository root after building opentyrian2000.exe and
 # tyrian-relay.exe. Exits 0 if the test passed.
 param(
@@ -53,7 +54,7 @@ if ($Relay -eq '' -and $Mode -ne 'lan') {
 
 function Start-Player($name, $script) {
     $arguments = @('--no-sound', "--net-name=$name", "--dev-script=$out\$script.txt", "--hash-log=$out\$name-hash.txt")
-    if ($Relay -ne '') { $arguments += "--relay=$Relay" }
+    if ($Relay -ne '' -and $Relay -ne 'default') { $arguments += "--relay=$Relay" }
     $p = Start-Process .\opentyrian2000.exe -ArgumentList $arguments -PassThru -NoNewWindow -RedirectStandardError "$out\$name-stderr.txt" -RedirectStandardOutput "$out\$name-stdout.txt"
     $null = $p.Handle  # keeps ExitCode readable after the process ends
     return $p

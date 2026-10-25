@@ -171,6 +171,11 @@ computer, so joining needs no address or code.
 Clients don't trust the relay either: they check the slot numbers and game
 settings it sends before using them.
 
+**The internet relay** runs on a DigitalOcean droplet in San Francisco (SFO2,
+$4/month) at `206.189.70.45`, installed with `tools/deploy-relay.sh`. That
+address is the game's default. From the owner's PC the round trip is about
+38 ms, so the relay picks an input delay of 3 ticks.
+
 **Not done yet:** players 3 and 4 (M2; the protocol already has 4 slots and
 lets a computer bring 2 players), adaptive input delay, repeating a late
 player's input, and a ping display (M4).
