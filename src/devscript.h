@@ -29,7 +29,9 @@
  * checked without anyone at the keyboard.  One command per line:
  *
  *   wait MS               pause the script for MS milliseconds
- *   key NAME [HOLD_MS]    press and release a key (SDL scancode name, e.g. Return)
+ *   key NAME [HOLD_MS]    press and release a key (SDL scancode name, e.g. Return;
+ *                         write spaces as underscores, e.g. Left_Ctrl)
+ *   down NAME / up NAME   press or release a key, for holding several at once
  *   shot PATH             save the next presented frame as a BMP
  *   window W H            resize the window
  *   mode NAME             set the scaling mode (e.g. Widescreen)

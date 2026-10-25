@@ -96,6 +96,12 @@ static void run_line(const char *line, Uint32 now)
 	char command[32] = "", arg1[DEVSCRIPT_LINE_LEN] = "", arg2[32] = "";
 	sscanf(line, "%31s %255s %31s", command, arg1, arg2);
 
+	// key names with spaces are written with underscores, e.g. Left_Ctrl
+	if (strcmp(command, "key") == 0 || strcmp(command, "down") == 0 || strcmp(command, "up") == 0)
+		for (char *c = arg1; *c != '\0'; ++c)
+			if (*c == '_')
+				*c = ' ';
+
 	if (strcmp(command, "wait") == 0)
 	{
 		resume_tick = now + atoi(arg1);
@@ -114,6 +120,17 @@ static void run_line(const char *line, Uint32 now)
 		held_key = scancode;
 		release_tick = now + (arg2[0] != '\0' ? atoi(arg2) : 100);
 		resume_tick = release_tick;
+	}
+	else if (strcmp(command, "down") == 0 || strcmp(command, "up") == 0)
+	{
+		SDL_Scancode scancode = SDL_GetScancodeFromName(arg1);
+		if (scancode == SDL_SCANCODE_UNKNOWN)
+		{
+			fprintf(stderr, "devscript: unknown key '%s'\n", arg1);
+			return;
+		}
+
+		push_key_event(command[0] == 'd' ? SDL_KEYDOWN : SDL_KEYUP, scancode);
 	}
 	else if (strcmp(command, "shot") == 0)
 	{
