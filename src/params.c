@@ -19,6 +19,7 @@
 #include "params.h"
 
 #include "arg_parse.h"
+#include "devscript.h"
 #include "file.h"
 #include "joystick.h"
 #include "loudness.h"
@@ -63,7 +64,9 @@ void JE_paramCheck(int argc, char *argv[])
 		{ 'k', 'k', "death",             false },
 		{ 'r', 'r', "record",            false },
 		{ 'l', 'l', "loot",              false },
-		
+
+		{ 258, 0,   "dev-script",        true },
+
 		{ 0, 0, NULL, false}
 	};
 	
@@ -98,7 +101,8 @@ void JE_paramCheck(int argc, char *argv[])
 			       "  --net-player-number=NUMBER   Sets local player number in a networked game\n"
 			       "                               (1 or 2)\n"
 			       "  -p, --net-port=PORT          Local port to bind (default is 1333)\n"
-			       "  -d, --net-delay=FRAMES       Set lag-compensation delay (default is 1)\n", argv[0]);
+			       "  -d, --net-delay=FRAMES       Set lag-compensation delay (default is 1)\n\n"
+			       "  --dev-script=FILE            Drive the game from a test script (see devscript.h)\n", argv[0]);
 			exit(0);
 			break;
 			
@@ -214,7 +218,12 @@ void JE_paramCheck(int argc, char *argv[])
 			// Gives you mucho bucks
 			richMode = true;
 			break;
-			
+
+		case 258: // --dev-script
+			if (!devscript_load(option.arg))
+				exit(EXIT_FAILURE);
+			break;
+
 		default:
 			assert(false);
 			break;

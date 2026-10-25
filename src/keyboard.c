@@ -19,6 +19,7 @@
 #include "keyboard.h"
 
 #include "config.h"
+#include "devscript.h"
 #include "joystick.h"
 #include "mouse.h"
 #include "network.h"
@@ -147,6 +148,8 @@ void service_SDL_events(JE_boolean clear_new)
 		new_text = false;
 	}
 
+	devscript_tick();
+
 	while (SDL_PollEvent(&ev))
 	{
 		switch (ev.type)
@@ -155,7 +158,7 @@ void service_SDL_events(JE_boolean clear_new)
 				switch (ev.window.event)
 				{
 				case SDL_WINDOWEVENT_FOCUS_LOST:
-					windowHasFocus = false;
+					windowHasFocus = devscript_enabled;
 
 					mouseSetRelative(mouseRelativeEnabled);
 					break;
