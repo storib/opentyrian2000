@@ -640,6 +640,8 @@ void JE_main(void)
 
 start_level:
 
+	video_hud_split = false;
+
 	mouseSetRelative(false);
 
 	if (galagaMode)
@@ -768,6 +770,7 @@ start_level_first:
 	}
 	
 	JE_loadPic(VGAScreen, twoPlayerMode ? 6 : 3, false);
+	video_hud_split = true;
 
 	JE_drawOptions();
 

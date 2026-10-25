@@ -31,13 +31,22 @@ typedef enum {
 	SCALE_INTEGER,
 	SCALE_ASPECT_8_5,
 	SCALE_ASPECT_4_3,
+	SCALE_WIDESCREEN,
 	ScalingMode_MAX
 } ScalingMode;
+
+// In-game screen layout: the playfield is the left part of the frame, the HUD panel the right.
+#define playfield_width 264
+#define hud_panel_width (vga_width - playfield_width)
 
 extern const char *const scaling_mode_names[ScalingMode_MAX];
 
 extern int fullscreen_display; // -1 means windowed
 extern ScalingMode scaling_mode;
+
+// Set while the in-game playfield + HUD panel layout is on screen.  In widescreen mode the
+// panel is then moved out beside the playfield instead of being drawn attached to it.
+extern bool video_hud_split;
 
 extern SDL_Surface *VGAScreen, *VGAScreenSeg;
 extern SDL_Surface *game_screen;
