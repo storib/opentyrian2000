@@ -46,6 +46,16 @@ static FILE *record_file = NULL, *replay_file = NULL, *hash_log = NULL;
 static unsigned int current_level = 0;
 static Uint32 verified_ticks = 0;
 
+static const char *state_dump_path = NULL;
+static Uint32 state_dump_tick = 0;  // 0: only when a replay diverges
+
+// While dumping, every hashed value is also written out by name, so dumps from two
+// machines can be diffed to find exactly what diverged.
+static FILE *dump_file = NULL;
+static char dump_context[32] = "";  // which entity the values belong to, e.g. "enemy[12]."
+
+static void write_state_dump(void);
+
 /* --- byte packing --- */
 
 static void put_u8(FILE *f, Uint8 v)
@@ -163,6 +173,12 @@ bool sync_open_hash_log(const char *path)
 	return true;
 }
 
+void sync_set_state_dump(const char *path, Uint32 tick)
+{
+	state_dump_path = path;
+	state_dump_tick = tick;
+}
+
 bool sync_is_deterministic(void)
 {
 	return record_file != NULL || replay_file != NULL;
@@ -188,12 +204,33 @@ static void replay_diverged(const char *what, Uint64 expected, Uint64 actual)
 	fprintf(stderr, "replay: DIVERGED at level %u tick %u: %s (expected %llx, got %llx); %u ticks verified before\n",
 	        current_level, (unsigned)sim_tick, what,
 	        (unsigned long long)expected, (unsigned long long)actual, (unsigned)verified_ticks);
+	if (state_dump_path != NULL && state_dump_tick == 0)
+		write_state_dump();
 	if (hash_log != NULL)
 	{
 		fprintf(hash_log, "DIVERGED %s\n", what);
 		fclose(hash_log);
 	}
 	exit(3);
+}
+
+/** Writes every value of the state hash, by name, for the current tick. */
+static void write_state_dump(void)
+{
+	dump_file = fopen(state_dump_path, "w");
+	if (dump_file == NULL)
+	{
+		fprintf(stderr, "error: failed to create state dump '%s'\n", state_dump_path);
+		return;
+	}
+
+	fprintf(dump_file, "level %u tick %u\n", current_level, (unsigned)sim_tick);
+	const Uint64 dumped_hash = sync_state_hash();
+	fprintf(dump_file, "hash %016llx\n", (unsigned long long)dumped_hash);
+
+	fclose(dump_file);
+	dump_file = NULL;
+	fprintf(stderr, "sync: wrote state dump for tick %u to %s\n", (unsigned)sim_tick, state_dump_path);
 }
 
 /** Reads the next record type; running out of records ends the replay. */
@@ -244,10 +281,13 @@ void sync_tick_begin(void)
 
 void sync_tick_end(void)
 {
-	if (record_file == NULL && replay_file == NULL && hash_log == NULL)
+	if (record_file == NULL && replay_file == NULL && hash_log == NULL && state_dump_path == NULL)
 		return;
 
 	const Uint64 hash = sync_state_hash();
+
+	if (state_dump_path != NULL && state_dump_tick == sim_tick)
+		write_state_dump();
 
 	if (record_file != NULL)
 	{
@@ -331,8 +371,16 @@ void sync_replay_input(unsigned int player_num, PlayerInput *input)
 // differ between runs and between platforms.
 static Uint64 hash;
 
-static void hash_value(Sint64 value)
+static void hash_value(const char *name, int index, Sint64 value)
 {
+	if (dump_file != NULL)
+	{
+		if (index >= 0)
+			fprintf(dump_file, "%s%s[%d]=%lld\n", dump_context, name, index, (long long)value);
+		else
+			fprintf(dump_file, "%s%s=%lld\n", dump_context, name, (long long)value);
+	}
+
 	Uint64 v = (Uint64)value;
 	for (int i = 0; i < 8; ++i)
 	{
@@ -342,9 +390,10 @@ static void hash_value(Sint64 value)
 	}
 }
 
-#define H(v) hash_value((Sint64)(v))
-#define H_FLOAT(v) hash_value(float_bits(v))
-#define H_ARRAY(a) do { for (size_t h_i = 0; h_i < COUNTOF(a); ++h_i) H((a)[h_i]); } while (false)
+#define H(v) hash_value(#v, -1, (Sint64)(v))
+#define H_FLOAT(v) hash_value(#v, -1, float_bits(v))
+#define H_ARRAY(a) do { for (size_t h_i = 0; h_i < COUNTOF(a); ++h_i) hash_value(#a, (int)h_i, (Sint64)(a)[h_i]); } while (false)
+#define CONTEXT(...) do { if (dump_file != NULL) snprintf(dump_context, sizeof(dump_context), __VA_ARGS__); } while (false)
 
 static void hash_player(const Player *p)
 {
@@ -489,13 +538,18 @@ Uint64 sync_state_hash(void)
 {
 	hash = 14695981039346656037ULL;
 
+	CONTEXT("%s", "");
 	H(mt_state_digest());
 
 	for (uint i = 0; i < COUNTOF(player); ++i)
+	{
+		CONTEXT("player[%u].", i);
 		hash_player(&player[i]);
+	}
 
 	for (uint i = 0; i < COUNTOF(enemy); ++i)
 	{
+		CONTEXT("enemy[%u].", i);
 		H(enemyAvail[i]);
 		if (enemyAvail[i] != 1)  // 1 means the slot is free
 			hash_enemy(&enemy[i]);
@@ -503,6 +557,7 @@ Uint64 sync_state_hash(void)
 
 	for (uint i = 0; i < MAX_PWEAPON; ++i)
 	{
+		CONTEXT("player_shot[%u].", i);
 		H(shotAvail[i]);
 		if (shotAvail[i] != 0)  // 0 means the slot is free
 			hash_player_shot(&playerShotData[i]);
@@ -510,6 +565,7 @@ Uint64 sync_state_hash(void)
 
 	for (uint i = 0; i < ENEMY_SHOT_MAX; ++i)
 	{
+		CONTEXT("enemy_shot[%u].", i);
 		H(enemyShotAvail[i]);
 		if (!enemyShotAvail[i])  // true means the slot is free
 			hash_enemy_shot(&enemyShot[i]);
@@ -517,6 +573,7 @@ Uint64 sync_state_hash(void)
 
 	for (uint i = 0; i < MAX_EXPLOSIONS; ++i)
 	{
+		CONTEXT("explosion[%u].", i);
 		H(explosions[i].ttl);
 		if (explosions[i].ttl != 0)
 		{
@@ -530,6 +587,7 @@ Uint64 sync_state_hash(void)
 	}
 
 	// level progress and assorted gameplay globals
+	CONTEXT("%s", "");
 	H(curLoc);
 	H(eventLoc);
 	H(maxEvent);

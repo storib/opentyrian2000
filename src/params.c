@@ -73,12 +73,17 @@ void JE_paramCheck(int argc, char *argv[])
 		{ 260, 0,   "replay-input",      true },
 		{ 261, 0,   "hash-log",          true },
 		{ 262, 0,   "quick-arcade",      true },
+		{ 263, 0,   "state-dump",        true },
+		{ 264, 0,   "state-dump-tick",   true },
 
 		{ 0, 0, NULL, false}
 	};
 	
 	Option option;
-	
+
+	const char *state_dump_path = NULL;
+	Uint32 state_dump_tick = 0;
+
 	for (; ; )
 	{
 		option = parse_args(argc, (const char **)argv, options);
@@ -114,7 +119,9 @@ void JE_paramCheck(int argc, char *argv[])
 			       "  --replay-input=FILE          Replay recorded input, checking every state hash\n"
 			       "  --hash-log=FILE              Write the per-tick state hash to FILE\n"
 			       "  --quick-arcade=P[:E[:D]]     Skip the menus and start a P-player arcade game,\n"
-			       "                               episode E, difficulty D (easy, normal or hard)\n", argv[0]);
+			       "                               episode E, difficulty D (easy, normal or hard)\n"
+			       "  --state-dump=FILE            When a replay diverges, write every hashed value to FILE\n"
+			       "  --state-dump-tick=N          ...or write it at the end of tick N instead\n", argv[0]);
 			exit(0);
 			break;
 			
@@ -277,12 +284,23 @@ void JE_paramCheck(int argc, char *argv[])
 			break;
 		}
 
+		case 263: // --state-dump
+			state_dump_path = option.arg;
+			break;
+
+		case 264: // --state-dump-tick
+			state_dump_tick = strtoul(option.arg, NULL, 10);
+			break;
+
 		default:
 			assert(false);
 			break;
 		}
 	}
 	
+	if (state_dump_path != NULL)
+		sync_set_state_dump(state_dump_path, state_dump_tick);
+
 	// legacy parameter support
 	for (int i = option.argn; i < argc; ++i)
 	{

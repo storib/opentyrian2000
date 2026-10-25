@@ -57,6 +57,9 @@ bool sync_open_record(const char *path);
 bool sync_open_replay(const char *path);
 bool sync_open_hash_log(const char *path);
 
+/** Dump every hashed value at the end of `tick`, or (tick 0) when a replay diverges. */
+void sync_set_state_dump(const char *path, Uint32 tick);
+
 /** True when the simulation must be reproducible (recording or replaying). */
 bool sync_is_deterministic(void);
 bool sync_is_replaying(void);

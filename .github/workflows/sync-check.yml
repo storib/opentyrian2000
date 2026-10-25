@@ -68,7 +68,8 @@ jobs:
           ./opentyrian2000 --no-sound --quick-arcade=2:1:normal \
             --dev-script=tests/sync/2p-arcade-replay.txt \
             --replay-input=tests/sync/2p-arcade.otr \
-            --hash-log=tests/sync/out/hash.txt
+            --hash-log=tests/sync/out/hash.txt \
+            --state-dump=tests/sync/out/state.txt
 
       - name: Upload screenshots and hash log
         if: always()
