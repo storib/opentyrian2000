@@ -5085,7 +5085,9 @@ void JE_eventSystem(void)
 		break;
 
 	case 64:
-		if (!(eventRec[eventLoc-1].eventdat == 6 && twoPlayerMode && difficultyLevel > DIFFICULTY_NORMAL))
+		// Smoothie 6 is the spotlight that darkens everything away from player 1
+		// (e.g. the Hard+ Tyrian map). Never enable it; the levels play the same.
+		if (eventRec[eventLoc-1].eventdat != 6)
 		{
 			smoothies[eventRec[eventLoc-1].eventdat-1] = eventRec[eventLoc-1].eventdat2;
 			temp = eventRec[eventLoc-1].eventdat;
