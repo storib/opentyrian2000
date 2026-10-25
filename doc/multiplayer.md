@@ -136,6 +136,11 @@ Lockstep only works if every machine computes **bit-identical** results.
   keeps libm.
 - **The RNG** (Mersenne Twister) uses `unsigned long`, which is 32 bits on
   Windows and 64 on macOS. Its values are masked to 32 bits, so it matches.
+- **Evaluation order is not portable.** In `f(mt_rand(), mt_rand())` or
+  `mt_rand() % a + mt_rand() % b`, C leaves the order unspecified, and gcc
+  and clang pick opposite orders. This caused a real Windows/macOS desync,
+  so random draws go into named locals first, one per statement. The same
+  applies to any two side-effecting calls in one expression.
 - **Settings that change gameplay** must match on every machine: difficulty,
   and possibly detail level or game speed if they alter what the simulation
   does. The host's settings will be sent at game start (M3).
